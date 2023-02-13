@@ -28,6 +28,7 @@ import alluxio.proxy.s3.S3RestExceptionMapper;
 import alluxio.util.io.PathUtils;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
+import com.google.common.util.concurrent.RateLimiter;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Collections;
@@ -55,11 +56,16 @@ public final class ProxyWebServer extends WebServer {
   public static final String ALLUXIO_PROXY_SERVLET_RESOURCE_KEY = "Alluxio Proxy";
   public static final String FILE_SYSTEM_SERVLET_RESOURCE_KEY = "File System";
   public static final String STREAM_CACHE_SERVLET_RESOURCE_KEY = "Stream Cache";
+  public static final String GLOBAL_RATE_LIMITER_SERVLET_RESOURCE_KEY = "Global Rate Limiter";
 
   public static final String SERVER_CONFIGURATION_RESOURCE_KEY = "Server Configuration";
   public static final String ALLUXIO_PROXY_AUDIT_LOG_WRITER_KEY = "Alluxio Proxy Audit Log Writer";
 
+  public static final long MB = 1024 * 1024L;
+
   private final FileSystem mFileSystem;
+
+  private final RateLimiter mGlobalRateLimiter;
 
   private AsyncUserAccessAuditLogWriter mAsyncAuditLogWriter;
 
@@ -82,6 +88,12 @@ public final class ProxyWebServer extends WebServer {
 
     mFileSystem = FileSystem.Factory.create(Configuration.global());
 
+    long rate = Configuration.getLong(PropertyKey.PROXY_S3_GLOBAL_READ_RATE_LIMIT_MB) * MB;
+    if (rate <= 0) {
+      rate = Long.MAX_VALUE;
+    }
+    this.mGlobalRateLimiter = RateLimiter.create(rate);
+
     if (Configuration.getBoolean(PropertyKey.PROXY_AUDIT_LOGGING_ENABLED)) {
       mAsyncAuditLogWriter = new AsyncUserAccessAuditLogWriter("PROXY_AUDIT_LOG");
       mAsyncAuditLogWriter.start();
@@ -103,6 +115,8 @@ public final class ProxyWebServer extends WebServer {
         getServletContext().setAttribute(STREAM_CACHE_SERVLET_RESOURCE_KEY,
                 new StreamCache(Configuration.getMs(PropertyKey.PROXY_STREAM_CACHE_TIMEOUT_MS)));
         getServletContext().setAttribute(ALLUXIO_PROXY_AUDIT_LOG_WRITER_KEY, mAsyncAuditLogWriter);
+        getServletContext().setAttribute(GLOBAL_RATE_LIMITER_SERVLET_RESOURCE_KEY,
+            mGlobalRateLimiter);
       }
 
       @Override
