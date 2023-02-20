@@ -314,7 +314,8 @@ public final class S3RestServiceHandler {
             S3ErrorCode.INTERNAL_ERROR.getStatus()));
       }
 
-      String path = S3RestUtils.parsePath(AlluxioURI.SEPARATOR + bucket);
+      String bucketPath = S3RestUtils.parsePath(AlluxioURI.SEPARATOR + bucket);
+      String path = bucketPath;
       final String user = getUser();
       final FileSystem userFs = S3RestUtils.createFileSystemForUser(user, mMetaFS);
 
@@ -370,8 +371,8 @@ public final class S3RestServiceHandler {
             if (prefixParam != null) {
               path = parsePathWithDelimiter(path, prefixParam, AlluxioURI.SEPARATOR);
             }
-            ListStatusPOptions options = ListStatusPOptions.newBuilder().setRecursive(true).build();
-            children = userFs.listStatus(new AlluxioURI(path), options);
+            children = S3RestUtils.listStatusByPrefix(userFs, path, prefixParam, bucketPath,
+                AlluxioURI.SEPARATOR, maxKeys);
           }
         } catch (FileDoesNotExistException e) {
           // Since we've called S3RestUtils.checkPathIsAlluxioDirectory() on the bucket path

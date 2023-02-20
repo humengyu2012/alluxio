@@ -41,6 +41,7 @@ import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
+import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -605,6 +606,47 @@ public final class S3RestUtils {
     }
 
     return user;
+  }
+
+  public static List<URIStatus> listStatusByPrefix(FileSystem fs, String parent, String prefix,
+      String bucketPath, String delimiter, int maxKeys) throws IOException, AlluxioException {
+    List<URIStatus> results = new ArrayList<>();
+    fs.listStatus(new AlluxioURI(parent)).stream()
+        .filter(uriStatus -> uriStatus.getPath().startsWith(
+            new AlluxioURI(bucketPath + delimiter + prefix).toString()))
+        .limit(maxKeys).forEach(results::add);
+    if (results.size() >= maxKeys) {
+      return results;
+    }
+    for (URIStatus status : results) {
+      if (!status.isFolder()) {
+        continue;
+      }
+      listStatus(fs, status, maxKeys, results);
+      if (results.size() >= maxKeys) {
+        return results;
+      }
+    }
+    return results;
+  }
+
+  private static void listStatus(FileSystem fs, URIStatus uri, int maxKeys, List<URIStatus> results)
+      throws IOException, AlluxioException {
+    List<URIStatus> children = fs.listStatus(new AlluxioURI(uri.getPath())).stream()
+        .limit(maxKeys - results.size()).collect(Collectors.toList());
+    results.addAll(children);
+    if (results.size() >= maxKeys) {
+      return;
+    }
+    for (URIStatus child : children) {
+      if (!child.isFolder()) {
+        continue;
+      }
+      listStatus(fs, child, maxKeys, results);
+      if (results.size() >= maxKeys) {
+        return;
+      }
+    }
   }
 
   /**
