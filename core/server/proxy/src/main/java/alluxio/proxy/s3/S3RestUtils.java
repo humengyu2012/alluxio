@@ -41,6 +41,7 @@ import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -124,7 +125,7 @@ public final class S3RestUtils {
       XmlMapper mapper = new XmlMapper();
       return Response.ok(mapper.writeValueAsString(result)).build();
     } catch (Exception e) {
-      LOG.warn("Error invoking REST endpoint for {}:\n{}", resource, e.getMessage());
+      LOG.warn("Error invoking REST endpoint for {}:", resource, e);
       return S3ErrorResponse.createErrorResponse(e, resource);
     }
   }
@@ -280,17 +281,8 @@ public final class S3RestUtils {
                                                  @Nullable S3AuditContext auditContext)
       throws S3Exception {
     try {
-//      URIStatus status = fs.getStatus(new AlluxioURI(bucketPath));
-//      if (!status.isFolder()) {
-//        throw new InvalidPathException("Bucket " + bucketPath
-//            + " is not a valid Alluxio directory.");
-//      }
-      // 因为 getStatus 会触发元数据全量加载的 bug，所以这里用 listStatus 代替检查
-      // 规则如下：文件在 list 的时候仅会返回它自己
-      AlluxioURI bucketUri = new AlluxioURI(bucketPath);
-      List<URIStatus> children = fs.listStatus(bucketUri);
-      if (children.size() == 1 && !children.get(0).isFolder() && children.get(0).getPath()
-          .equals(bucketUri.getPath())) {
+      URIStatus status = fs.getStatus(new AlluxioURI(bucketPath));
+      if (!status.isFolder()) {
         throw new InvalidPathException("Bucket " + bucketPath
             + " is not a valid Alluxio directory.");
       }
@@ -617,21 +609,24 @@ public final class S3RestUtils {
     return user;
   }
 
-  public static List<URIStatus> listStatusByPrefix(FileSystem fs, String parent, String prefix,
-      String bucketPath, String delimiter, int maxKeys) throws IOException, AlluxioException {
-    List<URIStatus> results = new ArrayList<>();
-    fs.listStatus(new AlluxioURI(parent)).stream()
-        .filter(uriStatus -> uriStatus.getPath().startsWith(
-            new AlluxioURI(bucketPath + delimiter + prefix).toString()))
-        .limit(maxKeys).forEach(results::add);
+  public static List<URIStatus> listStatusByPrefix(
+      Function<AlluxioURI, List<URIStatus>> uriStatusProvider, String prefix, int maxKeys) {
+    AlluxioURI parent = new AlluxioURI(prefix);
+    if (!parent.isRoot()) {
+      parent = parent.getParent();
+    }
+    List<URIStatus> children = uriStatusProvider.apply(parent).stream()
+        .filter(uriStatus -> uriStatus.getPath().startsWith(prefix))
+        .limit(maxKeys).collect(Collectors.toList());
+    List<URIStatus> results = new ArrayList<>(children);
     if (results.size() >= maxKeys) {
       return results;
     }
-    for (URIStatus status : results) {
-      if (!status.isFolder()) {
+    for (URIStatus child : children) {
+      if (!child.isFolder()) {
         continue;
       }
-      listStatus(fs, status, maxKeys, results);
+      listStatus(uriStatusProvider, child, maxKeys, results);
       if (results.size() >= maxKeys) {
         return results;
       }
@@ -639,9 +634,9 @@ public final class S3RestUtils {
     return results;
   }
 
-  private static void listStatus(FileSystem fs, URIStatus uri, int maxKeys, List<URIStatus> results)
-      throws IOException, AlluxioException {
-    List<URIStatus> children = fs.listStatus(new AlluxioURI(uri.getPath())).stream()
+  private static void listStatus(Function<AlluxioURI, List<URIStatus>> uriStatusProvider,
+      URIStatus uri, int maxKeys, List<URIStatus> results) {
+    List<URIStatus> children = uriStatusProvider.apply(new AlluxioURI(uri.getPath())).stream()
         .limit(maxKeys - results.size()).collect(Collectors.toList());
     results.addAll(children);
     if (results.size() >= maxKeys) {
@@ -651,7 +646,7 @@ public final class S3RestUtils {
       if (!child.isFolder()) {
         continue;
       }
-      listStatus(fs, child, maxKeys, results);
+      listStatus(uriStatusProvider, child, maxKeys, results);
       if (results.size() >= maxKeys) {
         return;
       }
