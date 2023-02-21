@@ -280,8 +280,17 @@ public final class S3RestUtils {
                                                  @Nullable S3AuditContext auditContext)
       throws S3Exception {
     try {
-      URIStatus status = fs.getStatus(new AlluxioURI(bucketPath));
-      if (!status.isFolder()) {
+//      URIStatus status = fs.getStatus(new AlluxioURI(bucketPath));
+//      if (!status.isFolder()) {
+//        throw new InvalidPathException("Bucket " + bucketPath
+//            + " is not a valid Alluxio directory.");
+//      }
+      // 因为 getStatus 会触发元数据全量加载的 bug，所以这里用 listStatus 代替检查
+      // 规则如下：文件在 list 的时候仅会返回它自己
+      AlluxioURI bucketUri = new AlluxioURI(bucketPath);
+      List<URIStatus> children = fs.listStatus(bucketUri);
+      if (children.size() == 1 && !children.get(0).isFolder() && children.get(0).getPath()
+          .equals(bucketUri.getPath())) {
         throw new InvalidPathException("Bucket " + bucketPath
             + " is not a valid Alluxio directory.");
       }
