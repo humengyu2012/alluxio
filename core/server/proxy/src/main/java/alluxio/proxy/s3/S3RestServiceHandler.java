@@ -314,8 +314,7 @@ public final class S3RestServiceHandler {
             S3ErrorCode.INTERNAL_ERROR.getStatus()));
       }
 
-      String bucketPath = S3RestUtils.parsePath(AlluxioURI.SEPARATOR + bucket);
-      String path = bucketPath;
+      String path = S3RestUtils.parsePath(AlluxioURI.SEPARATOR + bucket);;
       final String user = getUser();
       final FileSystem userFs = S3RestUtils.createFileSystemForUser(user, mMetaFS);
 
@@ -368,11 +367,25 @@ public final class S3RestServiceHandler {
             }
             children = userFs.listStatus(new AlluxioURI(path));
           } else {
+            boolean optimizedListObjects = mSConf.getBoolean(
+                PropertyKey.PROXY_S3_OPTIMIZED_LIST_OBJECTS_ENABLE);
             if (prefixParam != null) {
-              path = parsePathWithDelimiter(path, prefixParam, AlluxioURI.SEPARATOR);
+              path = parsePathWithDelimiter(path, prefixParam, AlluxioURI.SEPARATOR,
+                  !optimizedListObjects);
             }
-            children = S3RestUtils.listStatusByPrefix(userFs, path, prefixParam, bucketPath,
-                AlluxioURI.SEPARATOR, maxKeys);
+
+            if (optimizedListObjects) {
+              children = S3RestUtils.listStatusByPrefix(uri -> {
+                try {
+                  return userFs.listStatus(uri);
+                } catch (Exception e) {
+                  throw new RuntimeException(e);
+                }
+              }, path, maxKeys);
+            } else {
+              ListStatusPOptions options = ListStatusPOptions.newBuilder().setRecursive(true).build();
+              children = userFs.listStatus(new AlluxioURI(path), options);
+            }
           }
         } catch (FileDoesNotExistException e) {
           // Since we've called S3RestUtils.checkPathIsAlluxioDirectory() on the bucket path
@@ -1443,6 +1456,11 @@ public final class S3RestServiceHandler {
 
   private String parsePathWithDelimiter(String bucketPath, String prefix, String delimiter)
       throws S3Exception {
+    return parsePathWithDelimiter(bucketPath, prefix, delimiter, true);
+  }
+
+  private String parsePathWithDelimiter(String bucketPath, String prefix, String delimiter,
+      boolean returnParent) throws S3Exception {
     // TODO(czhu): allow non-"/" delimiters
     // Alluxio only support use / as delimiter
     if (!delimiter.equals(AlluxioURI.SEPARATOR)) {
@@ -1454,7 +1472,7 @@ public final class S3RestServiceHandler {
     char delim = AlluxioURI.SEPARATOR.charAt(0);
     String normalizedBucket =
         bucketPath.replace(S3Constants.BUCKET_SEPARATOR, AlluxioURI.SEPARATOR);
-    String normalizedPrefix = normalizeS3Prefix(prefix, delim);
+    String normalizedPrefix = normalizeS3Prefix(prefix, delim, returnParent);
 
     if (!normalizedPrefix.isEmpty() && !normalizedPrefix.startsWith(AlluxioURI.SEPARATOR)) {
       normalizedPrefix = AlluxioURI.SEPARATOR + normalizedPrefix;
@@ -1465,11 +1483,15 @@ public final class S3RestServiceHandler {
   /**
    * Normalize the prefix from S3 request.
    **/
-  private String normalizeS3Prefix(String prefix, char delimiter) {
+  private String normalizeS3Prefix(String prefix, char delimiter, boolean returnParent) {
     if (prefix != null) {
-      int pos = prefix.lastIndexOf(delimiter);
-      if (pos >= 0) {
-        return prefix.substring(0, pos + 1);
+      if (returnParent) {
+        int pos = prefix.lastIndexOf(delimiter);
+        if (pos >= 0) {
+          return prefix.substring(0, pos + 1);
+        }
+      } else {
+        return prefix;
       }
     }
     return "";
