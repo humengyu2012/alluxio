@@ -39,9 +39,11 @@ import alluxio.util.SecurityUtils;
 
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.net.HttpHeaders;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.protobuf.ByteString;
+import javax.ws.rs.core.Response.ResponseBuilder;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -127,7 +129,12 @@ public final class S3RestUtils {
       }
       // Need to explicitly encode the string as XML because Jackson will not do it automatically.
       XmlMapper mapper = new XmlMapper();
-      return Response.ok(mapper.writeValueAsString(result)).build();
+      ResponseBuilder builder = Response.ok(mapper.writeValueAsString(result))
+          .type(MediaType.APPLICATION_XML);
+      if (result instanceof ListBucketResult){
+        builder.header(HttpHeaders.CONNECTION, "keep-alive");
+      }
+      return builder.build();
     } catch (Exception e) {
       LOG.warn("Error invoking REST endpoint for {}:\n{}", resource, e.getMessage());
       return S3ErrorResponse.createErrorResponse(e, resource);
