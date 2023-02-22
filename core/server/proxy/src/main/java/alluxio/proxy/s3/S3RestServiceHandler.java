@@ -1117,6 +1117,7 @@ public final class S3RestServiceHandler {
               .lastModified(new Date(status.getLastModificationTimeMs()))
               .header(S3Constants.S3_CONTENT_LENGTH_HEADER,
                   status.isFolder() ? 0 : status.getLength())
+              .header("x-amz-storage-class", "STANDRED")
               .header(HttpHeaders.CONNECTION, "keep-alive");
 
           // Check for the object's ETag
