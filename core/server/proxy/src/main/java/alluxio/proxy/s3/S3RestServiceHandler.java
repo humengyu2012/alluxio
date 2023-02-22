@@ -44,6 +44,7 @@ import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.io.BaseEncoding;
 import com.google.common.io.ByteStreams;
+import com.google.common.net.HttpHeaders;
 import com.google.common.net.InetAddresses;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
@@ -1115,7 +1116,8 @@ public final class S3RestServiceHandler {
           Response.ResponseBuilder res = Response.ok()
               .lastModified(new Date(status.getLastModificationTimeMs()))
               .header(S3Constants.S3_CONTENT_LENGTH_HEADER,
-                  status.isFolder() ? 0 : status.getLength());
+                  status.isFolder() ? 0 : status.getLength())
+              .header(HttpHeaders.CONNECTION, "keep-alive");
 
           // Check for the object's ETag
           String entityTag = S3RestUtils.getEntityTag(status);
