@@ -15,6 +15,7 @@ import alluxio.AlluxioURI;
 import alluxio.Constants;
 import alluxio.StreamCache;
 import alluxio.client.file.FileSystem;
+import alluxio.client.file.URIStatus;
 import alluxio.conf.Configuration;
 import alluxio.conf.PropertyKey;
 import alluxio.grpc.FileSystemMasterCommonPOptions;
@@ -146,6 +147,7 @@ public final class ProxyWebServer extends WebServer {
   private static final String PATH = "path";
   private static final String FORCE = "force";
   private static final String RECURSIVE = "recursive";
+  private static final int MIN_DIR_DEPTH = 4;
 
   /**
    *
@@ -180,6 +182,11 @@ public final class ProxyWebServer extends WebServer {
       options = ListStatusPOptions.newBuilder().setRecursive(recursive).build();
     }
     try {
+      URIStatus status = mFileSystem.getStatus(alluxioURI);
+      if (recursive && alluxioURI.getDepth() < MIN_DIR_DEPTH && status.isFolder()) {
+        throw new IllegalArgumentException(
+            "The directory is too big, the depth must less than " + MIN_DIR_DEPTH);
+      }
       mFileSystem.loadMetadata(alluxioURI, options);
     } catch (Exception e) {
       throw new IOException(e.getMessage(), e);
