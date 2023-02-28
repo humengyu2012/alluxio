@@ -5054,6 +5054,14 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setDefaultValue(false)
           .setScope(Scope.SERVER)
           .build();
+  public static final PropertyKey PROXY_S3_AUTO_LOAD_FILE_SIZE_GB =
+      intBuilder(Name.PROXY_S3_AUTO_LOAD_FILE_SIZE_GB)
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
+          .setDescription("Whether auto load big file, "
+              + "set value less than or equal to 0 to disable.")
+          .setDefaultValue(-1)
+          .setScope(Scope.SERVER)
+          .build();
 
   //
   // Locality related properties
@@ -8079,6 +8087,8 @@ public final class PropertyKey implements Comparable<PropertyKey> {
         "alluxio.proxy.s3.single.connection.read.rate.limit.mb";
     public static final String PROXY_S3_OPTIMIZED_LIST_OBJECTS_ENABLE =
         "alluxio.proxy.s3.optimized.list.objects.enable";
+    public static final String PROXY_S3_AUTO_LOAD_FILE_SIZE_GB =
+        "alluxio.proxy.s3.auto.load.file.size.gb";
     public static final String PROXY_STREAM_CACHE_TIMEOUT_MS =
         "alluxio.proxy.stream.cache.timeout";
     public static final String PROXY_WEB_BIND_HOST = "alluxio.proxy.web.bind.host";

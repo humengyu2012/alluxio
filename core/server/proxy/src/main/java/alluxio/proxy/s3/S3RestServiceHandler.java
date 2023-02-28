@@ -16,6 +16,7 @@ import alluxio.Constants;
 import alluxio.client.file.FileInStream;
 import alluxio.client.file.FileOutStream;
 import alluxio.client.file.FileSystem;
+import alluxio.client.file.FileSystemContext;
 import alluxio.client.file.URIStatus;
 import alluxio.conf.Configuration;
 import alluxio.conf.InstancedConfiguration;
@@ -109,6 +110,7 @@ public final class S3RestServiceHandler {
 
   private final FileSystem mMetaFS;
   private final InstancedConfiguration mSConf;
+  private final FileSystemContext mFsContext;
 
   @Context
   private ContainerRequestContext mRequestContext;
@@ -137,6 +139,8 @@ public final class S3RestServiceHandler {
       throws IOException, AlluxioException {
     mMetaFS =
         (FileSystem) context.getAttribute(ProxyWebServer.FILE_SYSTEM_SERVLET_RESOURCE_KEY);
+    mFsContext = (FileSystemContext) context.getAttribute(
+        ProxyWebServer.FILE_SYSTEM_CONTEXT_SERVLET_RESOURCE_KEY);
     mSConf = (InstancedConfiguration) mMetaFS.getConf();
     mAsyncAuditLogWriter = (AsyncUserAccessAuditLogWriter) context.getAttribute(
         ProxyWebServer.ALLUXIO_PROXY_AUDIT_LOG_WRITER_KEY);
@@ -1275,6 +1279,24 @@ public final class S3RestServiceHandler {
           FileInStream is = userFs.openFile(objectUri);
           S3RangeSpec s3Range = S3RangeSpec.Factory.create(range);
           RangeFileInStream ris = RangeFileInStream.Factory.create(is, status.getLength(), s3Range);
+
+          long fileSize =
+              (long) mSConf.getInt(PropertyKey.PROXY_S3_AUTO_LOAD_FILE_SIZE_GB) * Constants.GB;
+          if (fileSize > 0 && status.getLength() >= fileSize
+              && status.getInAlluxioPercentage() < 100) {
+            try {
+              LOG.info("Auto load {}", objectUri);
+              /**
+               * 这里 local 表示优先将数据拉回本地，否则将会以 USER_UFS_BLOCK_READ_LOCATION_POLICY 的配置
+               * 为准，这里测试了一下，local 是最快的，但是对本地压力很大，本地 worker 的缓存线程数为 cpu*2，
+               * 队列默认为 512，这里调大队列慢慢缓存即可
+               */
+              S3RestUtils.runLoadTask(objectUri, status, mFsContext, true, true);
+            } catch (Exception e) {
+              // ignore
+              LOG.warn("Can not run load task for path: {}", objectUri, e);
+            }
+          }
 
           InputStream rateLimitInputStream;
           long rate = mSConf.getLong(PropertyKey.PROXY_S3_SINGLE_CONNECTION_READ_RATE_LIMIT_MB)

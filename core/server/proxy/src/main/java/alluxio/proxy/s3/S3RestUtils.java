@@ -13,8 +13,15 @@ package alluxio.proxy.s3;
 
 import alluxio.AlluxioURI;
 import alluxio.client.WriteType;
+import alluxio.client.block.BlockStoreClient;
+import alluxio.client.block.policy.BlockLocationPolicy;
+import alluxio.client.block.stream.BlockInStream.BlockInStreamSource;
+import alluxio.client.block.stream.BlockWorkerClient;
 import alluxio.client.file.FileSystem;
+import alluxio.client.file.FileSystemContext;
 import alluxio.client.file.URIStatus;
+import alluxio.client.file.options.InStreamOptions;
+import alluxio.collections.Pair;
 import alluxio.conf.AlluxioConfiguration;
 import alluxio.conf.Configuration;
 import alluxio.conf.PropertyKey;
@@ -24,21 +31,30 @@ import alluxio.exception.DirectoryNotEmptyException;
 import alluxio.exception.FileAlreadyExistsException;
 import alluxio.exception.FileDoesNotExistException;
 import alluxio.exception.InvalidPathException;
+import alluxio.grpc.CacheRequest;
 import alluxio.grpc.DeletePOptions;
+import alluxio.grpc.OpenFilePOptions;
 import alluxio.grpc.SetAttributePOptions;
 import alluxio.grpc.WritePType;
+import alluxio.proto.dataserver.Protocol;
 import alluxio.proto.journal.File;
 import alluxio.proxy.s3.auth.Authenticator;
 import alluxio.proxy.s3.auth.AwsAuthInfo;
 import alluxio.proxy.s3.signature.AwsSignatureProcessor;
+import alluxio.resource.CloseableResource;
 import alluxio.security.User;
 import alluxio.security.authentication.AuthType;
 import alluxio.security.authentication.AuthenticatedClientUser;
 import alluxio.security.user.ServerUserState;
+import alluxio.util.FileSystemOptionsUtils;
 import alluxio.util.SecurityUtils;
 
+import alluxio.wire.BlockInfo;
+import alluxio.wire.WorkerNetAddress;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
 import java.util.function.Function;
@@ -654,6 +670,58 @@ public final class S3RestUtils {
       if (results.size() >= maxKeys) {
         return;
       }
+    }
+  }
+
+  public static void runLoadTask(AlluxioURI filePath, URIStatus status, FileSystemContext fsContext,
+      boolean local, boolean async) throws IOException {
+    AlluxioConfiguration conf = fsContext.getPathConf(filePath);
+    OpenFilePOptions options = FileSystemOptionsUtils.openFileDefaults(conf);
+    BlockLocationPolicy policy = Preconditions.checkNotNull(
+        BlockLocationPolicy.Factory
+            .create(conf.getClass(PropertyKey.USER_UFS_BLOCK_READ_LOCATION_POLICY), conf),
+        "UFS read location policy Required when loading files");
+    WorkerNetAddress dataSource;
+    List<Long> blockIds = status.getBlockIds();
+    for (long blockId : blockIds) {
+      if (local) {
+        dataSource = fsContext.getNodeLocalWorker();
+      } else { // send request to data source
+        BlockStoreClient blockStore = BlockStoreClient.create(fsContext);
+        Pair<WorkerNetAddress, BlockInStreamSource> dataSourceAndType = blockStore
+            .getDataSourceAndType(status.getBlockInfo(blockId), status, policy, ImmutableMap.of());
+        dataSource = dataSourceAndType.getFirst();
+      }
+      Protocol.OpenUfsBlockOptions openUfsBlockOptions =
+          new InStreamOptions(status, options, conf, fsContext).getOpenUfsBlockOptions(blockId);
+      cacheBlock(blockId, dataSource, status, openUfsBlockOptions, fsContext, async);
+    }
+  }
+
+  private static void cacheBlock(long blockId, WorkerNetAddress dataSource, URIStatus status,
+      Protocol.OpenUfsBlockOptions options, FileSystemContext fsContext, boolean async) {
+    BlockInfo info = status.getBlockInfo(blockId);
+    long blockLength = info.getLength();
+    String host = dataSource.getHost();
+    // issues#11172: If the worker is in a container, use the container hostname
+    // to establish the connection.
+    if (!dataSource.getContainerHost().equals("")) {
+      host = dataSource.getContainerHost();
+    }
+    CacheRequest request = CacheRequest.newBuilder()
+        .setBlockId(blockId)
+        .setLength(blockLength)
+        .setOpenUfsBlockOptions(options)
+        .setSourceHost(host)
+        .setSourcePort(dataSource.getDataPort())
+        .setAsync(async)
+        .build();
+    try (CloseableResource<BlockWorkerClient> blockWorker =
+        fsContext.acquireBlockWorkerClient(dataSource)) {
+      blockWorker.get().cache(request);
+    } catch (Exception e) {
+      throw new RuntimeException(String.format("Failed to complete cache request from %s for "
+          + "block %d of file %s: %s", dataSource, blockId, status.getPath(), e), e);
     }
   }
 

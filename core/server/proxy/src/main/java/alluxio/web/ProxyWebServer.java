@@ -15,6 +15,7 @@ import alluxio.AlluxioURI;
 import alluxio.Constants;
 import alluxio.StreamCache;
 import alluxio.client.file.FileSystem;
+import alluxio.client.file.FileSystemContext;
 import alluxio.client.file.URIStatus;
 import alluxio.conf.Configuration;
 import alluxio.conf.PropertyKey;
@@ -56,6 +57,7 @@ public final class ProxyWebServer extends WebServer {
   private static final Logger LOG = LoggerFactory.getLogger(ProxyWebServer.class);
   public static final String ALLUXIO_PROXY_SERVLET_RESOURCE_KEY = "Alluxio Proxy";
   public static final String FILE_SYSTEM_SERVLET_RESOURCE_KEY = "File System";
+  public static final String FILE_SYSTEM_CONTEXT_SERVLET_RESOURCE_KEY = "File System Context";
   public static final String STREAM_CACHE_SERVLET_RESOURCE_KEY = "Stream Cache";
   public static final String GLOBAL_RATE_LIMITER_SERVLET_RESOURCE_KEY = "Global Rate Limiter";
 
@@ -65,6 +67,7 @@ public final class ProxyWebServer extends WebServer {
   public static final long MB = 1024 * 1024L;
 
   private final FileSystem mFileSystem;
+  private final FileSystemContext mFsContext;
 
   private final RateLimiter mGlobalRateLimiter;
 
@@ -88,6 +91,7 @@ public final class ProxyWebServer extends WebServer {
         .register(S3RestExceptionMapper.class);
 
     mFileSystem = FileSystem.Factory.create(Configuration.global());
+    mFsContext = FileSystemContext.create(Configuration.global());
 
     long rate = Configuration.getLong(PropertyKey.PROXY_S3_GLOBAL_READ_RATE_LIMIT_MB) * MB;
     if (rate <= 0) {
@@ -118,6 +122,7 @@ public final class ProxyWebServer extends WebServer {
         getServletContext().setAttribute(ALLUXIO_PROXY_AUDIT_LOG_WRITER_KEY, mAsyncAuditLogWriter);
         getServletContext().setAttribute(GLOBAL_RATE_LIMITER_SERVLET_RESOURCE_KEY,
             mGlobalRateLimiter);
+        getServletContext().setAttribute(FILE_SYSTEM_CONTEXT_SERVLET_RESOURCE_KEY, mFsContext);
       }
 
       @Override
