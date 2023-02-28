@@ -5062,6 +5062,13 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setDefaultValue(-1)
           .setScope(Scope.SERVER)
           .build();
+  public static final PropertyKey PROXY_S3_AUTO_LOAD_PRE_LOAD_BLOCK_COUNT =
+      intBuilder(Name.PROXY_S3_AUTO_LOAD_PRE_LOAD_BLOCK_COUNT)
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
+          .setDescription("How many blocks pre load.")
+          .setDefaultValue(30)
+          .setScope(Scope.SERVER)
+          .build();
 
   //
   // Locality related properties
@@ -8089,6 +8096,8 @@ public final class PropertyKey implements Comparable<PropertyKey> {
         "alluxio.proxy.s3.optimized.list.objects.enable";
     public static final String PROXY_S3_AUTO_LOAD_FILE_SIZE_GB =
         "alluxio.proxy.s3.auto.load.file.size.gb";
+    public static final String PROXY_S3_AUTO_LOAD_PRE_LOAD_BLOCK_COUNT =
+        "alluxio.proxy.s3.auto.load.pre.load.block.count";
     public static final String PROXY_STREAM_CACHE_TIMEOUT_MS =
         "alluxio.proxy.stream.cache.timeout";
     public static final String PROXY_WEB_BIND_HOST = "alluxio.proxy.web.bind.host";

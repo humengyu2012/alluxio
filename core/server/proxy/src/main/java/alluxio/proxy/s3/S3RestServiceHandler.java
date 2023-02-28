@@ -48,6 +48,7 @@ import com.google.common.net.InetAddresses;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.protobuf.ByteString;
+import java.util.LinkedList;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -266,7 +267,7 @@ public final class S3RestServiceHandler {
    * Gets a bucket and lists all the objects or bucket tags in it.
    * @param bucket the bucket name
    * @param markerParam the optional marker param
-   * @param prefixParam the optional prefix param
+   * @param prefix the optional prefix param
    * @param delimiterParam the optional delimiter param
    * @param encodingTypeParam optional encoding type param
    * @param maxKeysParam the optional max keys param
@@ -1279,36 +1280,41 @@ public final class S3RestServiceHandler {
           FileInStream is = userFs.openFile(objectUri);
           S3RangeSpec s3Range = S3RangeSpec.Factory.create(range);
           RangeFileInStream ris = RangeFileInStream.Factory.create(is, status.getLength(), s3Range);
-
+          InputStream inputStream = ris;
           long fileSize =
               (long) mSConf.getInt(PropertyKey.PROXY_S3_AUTO_LOAD_FILE_SIZE_GB) * Constants.GB;
+          long readLength = s3Range.getLength(status.getLength());
+          // 注意，如果这里是分段读取，一般情况下是用户多个请求分段去读整个文件，也可以走预热逻辑，所以这里按照文件的
+          // 总大小判断，而不是真实 S3Range 标记的大小
           if (fileSize > 0 && status.getLength() >= fileSize
               && status.getInAlluxioPercentage() < 100) {
             try {
-              LOG.info("Auto load {}", objectUri);
-              /**
-               * 这里 local 表示优先将数据拉回本地，否则将会以 USER_UFS_BLOCK_READ_LOCATION_POLICY 的配置
-               * 为准，这里测试了一下，local 是最快的，但是对本地压力很大，本地 worker 的缓存线程数为 cpu*2，
-               * 队列默认为 512，这里调大队列慢慢缓存即可
-               */
-              S3RestUtils.runLoadTask(objectUri, status, mFsContext, true, true);
+              int preLoadCount = mSConf.getInt(PropertyKey.PROXY_S3_AUTO_LOAD_PRE_LOAD_BLOCK_COUNT);
+              LOG.info(
+                  "Range = {}, read length is: {}, file length is: {}, pre load count is: {}, "
+                      + "use LoadBlockInputStream for {}",
+                  range, readLength, status.getLength(), preLoadCount, objectUri);
+              LinkedList<LoadBlockTask> loadBlockTasks = LoadBlockTask.getLoadBlockTasks(objectUri,
+                  status, s3Range, mFsContext, true, true);
+              inputStream = new LoadBlockInputStream(loadBlockTasks, status.getBlockSizeBytes(),
+                  inputStream, preLoadCount);
             } catch (Exception e) {
-              // ignore
-              LOG.warn("Can not run load task for path: {}", objectUri, e);
+              // fall back
+              LOG.warn("Can not get load task for path: {}", objectUri, e);
+              inputStream = ris;
             }
           }
 
-          InputStream rateLimitInputStream;
           long rate = mSConf.getLong(PropertyKey.PROXY_S3_SINGLE_CONNECTION_READ_RATE_LIMIT_MB)
               * ProxyWebServer.MB;
           if (rate <= 0) {
-            rateLimitInputStream = new RateLimitInputStream(ris, mGlobalRateLimiter);
+            inputStream = new RateLimitInputStream(inputStream, mGlobalRateLimiter);
           } else {
-            rateLimitInputStream = new RateLimitInputStream(ris, mGlobalRateLimiter,
+            inputStream = new RateLimitInputStream(inputStream, mGlobalRateLimiter,
                 RateLimiter.create(rate));
           }
 
-          Response.ResponseBuilder res = Response.ok(rateLimitInputStream)
+          Response.ResponseBuilder res = Response.ok(inputStream)
               .lastModified(new Date(status.getLastModificationTimeMs()))
               .header(S3Constants.S3_CONTENT_LENGTH_HEADER, s3Range.getLength(status.getLength()));
 
