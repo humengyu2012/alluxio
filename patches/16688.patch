@@ -1,0 +1,106 @@
+From cf5dc1d1c12f7f52adc1ce52d1a00c867539e97f Mon Sep 17 00:00:00 2001
+From: humengyu <hellohumengyu@gmail.com>
+Date: Fri, 30 Dec 2022 13:15:47 +0800
+Subject: [PATCH 1/2] Remove master/worker java opts from monitor java opts
+
+---
+ bin/alluxio-monitor.sh       | 20 +++++++++++++-------
+ conf/alluxio-env.sh.template | 16 ++++++++++++++++
+ 2 files changed, 29 insertions(+), 7 deletions(-)
+
+diff --git a/bin/alluxio-monitor.sh b/bin/alluxio-monitor.sh
+index ed57a5578e18..3bc832761c68 100755
+--- a/bin/alluxio-monitor.sh
++++ b/bin/alluxio-monitor.sh
+@@ -53,13 +53,19 @@ get_env() {
+   CLASSPATH=${ALLUXIO_CLIENT_CLASSPATH}
+   ALLUXIO_TASK_LOG="${ALLUXIO_LOGS_DIR}/task.log"
+ 
+-  # Remove the remote debug configuration to avoid the error: "transport error 20: bind failed: Address already in use."
+-  # See https://github.com/Alluxio/alluxio/issues/10958
+-  # See https://github.com/Alluxio/alluxio/issues/15168
+-  ALLUXIO_MASTER_MONITOR_JAVA_OPTS=$(echo ${ALLUXIO_MASTER_JAVA_OPTS} | sed 's/^-agentlib:jdwp=transport=dt_socket.*address=[0-9]*//' | sed 's/-Dcom.sun.management.jmxremote.port=[0-9]*//')
+-  ALLUXIO_WORKER_MONITOR_JAVA_OPTS=$(echo ${ALLUXIO_WORKER_JAVA_OPTS} | sed 's/^-agentlib:jdwp=transport=dt_socket.*address=[0-9]*//' | sed 's/-Dcom.sun.management.jmxremote.port=[0-9]*//')
+-  ALLUXIO_JOB_MASTER_MONITOR_JAVA_OPTS=$(echo ${ALLUXIO_JOB_MASTER_JAVA_OPTS} | sed 's/^-agentlib:jdwp=transport=dt_socket.*address=[0-9]*//' | sed 's/-Dcom.sun.management.jmxremote.port=[0-9]*//')
+-  ALLUXIO_JOB_WORKER_MONITOR_JAVA_OPTS=$(echo ${ALLUXIO_JOB_WORKER_JAVA_OPTS} | sed 's/^-agentlib:jdwp=transport=dt_socket.*address=[0-9]*//'| sed 's/-Dcom.sun.management.jmxremote.port=[0-9]*//')
++  ALLUXIO_MONITOR_JAVA_OPTS_DEFAULT="-Xms256M -Xmx256M"
++  if [ -z ${ALLUXIO_MASTER_MONITOR_JAVA_OPTS} ]; then
++    ALLUXIO_MASTER_MONITOR_JAVA_OPTS=${ALLUXIO_MONITOR_JAVA_OPTS_DEFAULT}
++  fi
++  if [ -z ${ALLUXIO_WORKER_MONITOR_JAVA_OPTS} ]; then
++    ALLUXIO_WORKER_MONITOR_JAVA_OPTS=${ALLUXIO_MONITOR_JAVA_OPTS_DEFAULT}
++  fi
++  if [ -z ${ALLUXIO_JOB_MASTER_MONITOR_JAVA_OPTS} ]; then
++    ALLUXIO_JOB_MASTER_MONITOR_JAVA_OPTS=${ALLUXIO_MONITOR_JAVA_OPTS_DEFAULT}
++  fi
++  if [ -z ${ALLUXIO_JOB_WORKER_MONITOR_JAVA_OPTS} ]; then
++    ALLUXIO_JOB_WORKER_MONITOR_JAVA_OPTS=${ALLUXIO_MONITOR_JAVA_OPTS_DEFAULT}
++  fi
+ }
+ 
+ prepare_monitor() {
+diff --git a/conf/alluxio-env.sh.template b/conf/alluxio-env.sh.template
+index 243964a4b513..811c1601d032 100644
+--- a/conf/alluxio-env.sh.template
++++ b/conf/alluxio-env.sh.template
+@@ -72,6 +72,22 @@
+ # E.g. "-Dalluxio.user.file.writetype.default=CACHE_THROUGH"
+ # ALLUXIO_USER_JAVA_OPTS
+ 
++# Config properties set for Alluxio shell. (Default: "-Xms256M -Xmx256M")
++# E.g. "-Xms256M -Xmx256M"
++# ALLUXIO_MASTER_MONITOR_JAVA_OPTS
++
++# Config properties set for Alluxio shell. (Default: "-Xms256M -Xmx256M")
++# E.g. "-Xms256M -Xmx256M"
++# ALLUXIO_WORKER_MONITOR_JAVA_OPTS
++
++# Config properties set for Alluxio shell. (Default: "-Xms256M -Xmx256M")
++# E.g. "-Xms256M -Xmx256M"
++# ALLUXIO_JOB_MASTER_MONITOR_JAVA_OPTS
++
++# Config properties set for Alluxio shell. (Default: "-Xms256M -Xmx256M")
++# E.g. "-Xms256M -Xmx256M"
++# ALLUXIO_JOB_WORKER_MONITOR_JAVA_OPTS
++
+ # Additional classpath entries for Alluxio processes. (Default: "")
+ # E.g. "/path/to/library1/:/path/to/library2/"
+ # ALLUXIO_CLASSPATH
+
+From 32da1f20b8a5ebec758604ebe7bac1e12007fcce Mon Sep 17 00:00:00 2001
+From: humengyu <hellohumengyu@gmail.com>
+Date: Wed, 4 Jan 2023 20:55:56 +0800
+Subject: [PATCH 2/2] edit decriptions for monitor java opts
+
+---
+ conf/alluxio-env.sh.template | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/conf/alluxio-env.sh.template b/conf/alluxio-env.sh.template
+index 811c1601d032..898305973f22 100644
+--- a/conf/alluxio-env.sh.template
++++ b/conf/alluxio-env.sh.template
+@@ -72,19 +72,19 @@
+ # E.g. "-Dalluxio.user.file.writetype.default=CACHE_THROUGH"
+ # ALLUXIO_USER_JAVA_OPTS
+ 
+-# Config properties set for Alluxio shell. (Default: "-Xms256M -Xmx256M")
++# Config properties for the monitoring service used by Alluxio shell to monitor the healthiness of Alluxio master process. (Default: "-Xms256M -Xmx256M")
+ # E.g. "-Xms256M -Xmx256M"
+ # ALLUXIO_MASTER_MONITOR_JAVA_OPTS
+ 
+-# Config properties set for Alluxio shell. (Default: "-Xms256M -Xmx256M")
++# Config properties for the monitoring service used by Alluxio shell to monitor the healthiness of Alluxio worker process. (Default: "-Xms256M -Xmx256M")
+ # E.g. "-Xms256M -Xmx256M"
+ # ALLUXIO_WORKER_MONITOR_JAVA_OPTS
+ 
+-# Config properties set for Alluxio shell. (Default: "-Xms256M -Xmx256M")
++# Config properties for the monitoring service used by Alluxio shell to monitor the healthiness of Alluxio job master process. (Default: "-Xms256M -Xmx256M")
+ # E.g. "-Xms256M -Xmx256M"
+ # ALLUXIO_JOB_MASTER_MONITOR_JAVA_OPTS
+ 
+-# Config properties set for Alluxio shell. (Default: "-Xms256M -Xmx256M")
++# Config properties for the monitoring service used by Alluxio shell to monitor the healthiness of Alluxio job worker process. (Default: "-Xms256M -Xmx256M")
+ # E.g. "-Xms256M -Xmx256M"
+ # ALLUXIO_JOB_WORKER_MONITOR_JAVA_OPTS
+ 

@@ -1,0 +1,100 @@
+From 9bdbd941926681cc3c621a4f716f78c61a4af3ff Mon Sep 17 00:00:00 2001
+From: humengyu <hellohumengyu@gmail.com>
+Date: Wed, 8 Mar 2023 19:00:59 +0800
+Subject: [PATCH 1/2] Fix fuse metadata command ClassCastException
+
+---
+ .../client/file/DelegatingFileSystem.java     |  7 +++++
+ .../AbstractMetadataCacheSubCommand.java      | 28 ++++++++++++++++++-
+ 2 files changed, 34 insertions(+), 1 deletion(-)
+
+diff --git a/core/client/fs/src/main/java/alluxio/client/file/DelegatingFileSystem.java b/core/client/fs/src/main/java/alluxio/client/file/DelegatingFileSystem.java
+index 58ca4b70fa3f..500fc8fb79b4 100644
+--- a/core/client/fs/src/main/java/alluxio/client/file/DelegatingFileSystem.java
++++ b/core/client/fs/src/main/java/alluxio/client/file/DelegatingFileSystem.java
+@@ -264,4 +264,11 @@ public String getLoadProgress(AlluxioURI path,
+   public void close() throws IOException {
+     mDelegatedFileSystem.close();
+   }
++
++  /**
++   * @return The underlying file system
++   */
++  public FileSystem getUnderlyingFileSystem() {
++    return mDelegatedFileSystem;
++  }
+ }
+diff --git a/integration/fuse/src/main/java/alluxio/cli/command/metadatacache/AbstractMetadataCacheSubCommand.java b/integration/fuse/src/main/java/alluxio/cli/command/metadatacache/AbstractMetadataCacheSubCommand.java
+index 1e78590f542c..1444ca554b1b 100644
+--- a/integration/fuse/src/main/java/alluxio/cli/command/metadatacache/AbstractMetadataCacheSubCommand.java
++++ b/integration/fuse/src/main/java/alluxio/cli/command/metadatacache/AbstractMetadataCacheSubCommand.java
+@@ -16,6 +16,7 @@
+ import alluxio.client.file.FileSystem;
+ import alluxio.client.file.MetadataCachingFileSystem;
+ import alluxio.client.file.URIStatus;
++import alluxio.client.file.cache.LocalCacheFileSystem;
+ import alluxio.conf.AlluxioConfiguration;
+ import alluxio.conf.PropertyKey;
+ import alluxio.exception.runtime.InvalidArgumentRuntimeException;
+@@ -43,7 +44,7 @@ public URIStatus run(AlluxioURI path, String[] argv) throws InvalidArgumentExcep
+               + "not supported when %s is false", getCommandName(),
+           PropertyKey.USER_METADATA_CACHE_ENABLED.getName()));
+     }
+-    return runSubCommand(path, argv, (MetadataCachingFileSystem) mFileSystem);
++    return runSubCommand(path, argv, findMetadataCachingFileSystem());
+   }
+ 
+   /**
+@@ -53,4 +54,29 @@ public URIStatus run(AlluxioURI path, String[] argv) throws InvalidArgumentExcep
+    */
+   protected abstract URIStatus runSubCommand(AlluxioURI path, String[] argv,
+       MetadataCachingFileSystem fs);
++
++  /**
++   * Find MetadataCachingFileSystem by given filesystem.
++   */
++  private MetadataCachingFileSystem findMetadataCachingFileSystem() {
++    if (mFileSystem instanceof MetadataCachingFileSystem) {
++      return (MetadataCachingFileSystem) mFileSystem;
++    }
++    if (mFileSystem instanceof LocalCacheFileSystem) {
++      FileSystem underlyingFileSystem = ((LocalCacheFileSystem) mFileSystem)
++          .getUnderlyingFileSystem();
++      if (underlyingFileSystem instanceof MetadataCachingFileSystem) {
++        return (MetadataCachingFileSystem) underlyingFileSystem;
++      } else {
++        throw new IllegalStateException(
++            "The expected underlying FileSystem of LocalCacheFileSystem "
++                + "is MetadataCachingFileSystem, but found "
++                + mFileSystem.getClass().getSimpleName());
++      }
++    }
++    throw new IllegalStateException(
++        String.format("The expected FileSystem is %s or %s, but found %s",
++            MetadataCachingFileSystem.class.getSimpleName(),
++            LocalCacheFileSystem.class.getSimpleName(), mFileSystem.getClass().getSimpleName()));
++  }
+ }
+
+From d07af2c1e1988aabb87ee1e3b2706d4ab8ebf983 Mon Sep 17 00:00:00 2001
+From: humengyu <hellohumengyu@gmail.com>
+Date: Thu, 9 Mar 2023 12:16:57 +0800
+Subject: [PATCH 2/2] fix comment
+
+---
+ .../src/main/java/alluxio/client/file/DelegatingFileSystem.java | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/core/client/fs/src/main/java/alluxio/client/file/DelegatingFileSystem.java b/core/client/fs/src/main/java/alluxio/client/file/DelegatingFileSystem.java
+index 500fc8fb79b4..abcdd8ca5fc7 100644
+--- a/core/client/fs/src/main/java/alluxio/client/file/DelegatingFileSystem.java
++++ b/core/client/fs/src/main/java/alluxio/client/file/DelegatingFileSystem.java
+@@ -266,7 +266,7 @@ public void close() throws IOException {
+   }
+ 
+   /**
+-   * @return The underlying file system
++   * @return the underlying fileSystem
+    */
+   public FileSystem getUnderlyingFileSystem() {
+     return mDelegatedFileSystem;

@@ -1,0 +1,99 @@
+From ab252fcc9c3ca303f2acbbb7cd63dae21bd298e2 Mon Sep 17 00:00:00 2001
+From: elega <445092967@qq.com>
+Date: Wed, 1 Mar 2023 15:51:25 +0800
+Subject: [PATCH] Add a property to disable file access time
+
+---
+ .../main/java/alluxio/conf/PropertyKey.java   | 13 +++++++++++++
+ .../master/file/DefaultFileSystemMaster.java  | 19 ++++++++++++++-----
+ 2 files changed, 27 insertions(+), 5 deletions(-)
+
+diff --git a/core/common/src/main/java/alluxio/conf/PropertyKey.java b/core/common/src/main/java/alluxio/conf/PropertyKey.java
+index caf467b07713..d51f0e6a32f9 100755
+--- a/core/common/src/main/java/alluxio/conf/PropertyKey.java
++++ b/core/common/src/main/java/alluxio/conf/PropertyKey.java
+@@ -2447,6 +2447,17 @@ public String toString() {
+               + "the master addresses.")
+           .setScope(Scope.ALL)
+           .build();
++
++  public static final PropertyKey MASTER_FILE_ACCESS_TIME_UPDATER_ENABLED =
++      booleanBuilder(Name.MASTER_FILE_ACCESS_TIME_UPDATER_ENABLED)
++          .setDefaultValue(true)
++          .setDescription("If enabled, file access time updater will update the file last "
++              + "access time when an inode is accessed. This property can be turned off to improve "
++              + "performance and reduce the number of journal entries if your application does "
++              + "not rely on the file access time metadata.")
++          .setConsistencyCheckLevel(ConsistencyCheckLevel.WARN)
++          .setScope(Scope.MASTER)
++          .build();
+   public static final PropertyKey MASTER_FILE_ACCESS_TIME_JOURNAL_FLUSH_INTERVAL =
+       durationBuilder(Name.MASTER_FILE_ACCESS_TIME_JOURNAL_FLUSH_INTERVAL)
+           .setDefaultValue("1h")
+@@ -7828,6 +7839,8 @@ public static final class Name {
+         "alluxio.master.cluster.metrics.update.interval";
+     public static final String MASTER_CONTAINER_ID_RESERVATION_SIZE =
+         "alluxio.master.container.id.reservation.size";
++    public static final String MASTER_FILE_ACCESS_TIME_UPDATER_ENABLED =
++        "alluxio.master.file.access.time.updater.enabled";
+     public static final String MASTER_FILE_ACCESS_TIME_JOURNAL_FLUSH_INTERVAL =
+         "alluxio.master.file.access.time.journal.flush.interval";
+     public static final String MASTER_FILE_ACCESS_TIME_UPDATE_PRECISION =
+diff --git a/core/server/master/src/main/java/alluxio/master/file/DefaultFileSystemMaster.java b/core/server/master/src/main/java/alluxio/master/file/DefaultFileSystemMaster.java
+index b67d1e000ffd..12f0a3d6f64a 100644
+--- a/core/server/master/src/main/java/alluxio/master/file/DefaultFileSystemMaster.java
++++ b/core/server/master/src/main/java/alluxio/master/file/DefaultFileSystemMaster.java
+@@ -399,7 +399,7 @@ public class DefaultFileSystemMaster extends CoreMaster
+   /** Stores the time series for various metrics which are exposed in the UI. */
+   private final TimeSeriesStore mTimeSeriesStore;
+ 
+-  private final AccessTimeUpdater mAccessTimeUpdater;
++  @Nullable private final AccessTimeUpdater mAccessTimeUpdater;
+ 
+   /** Used to check pending/running backup from RPCs. */
+   protected final CallTracker mStateLockCallTracker;
+@@ -502,7 +502,10 @@ public Type getType() {
+     mUfsBlockLocationCache = UfsBlockLocationCache.Factory.create(mMountTable);
+     mSyncManager = new ActiveSyncManager(mMountTable, this);
+     mTimeSeriesStore = new TimeSeriesStore();
+-    mAccessTimeUpdater = new AccessTimeUpdater(this, mInodeTree, masterContext.getJournalSystem());
++    mAccessTimeUpdater =
++        Configuration.getBoolean(PropertyKey.MASTER_FILE_ACCESS_TIME_UPDATER_ENABLED)
++            ? new AccessTimeUpdater(
++                this, mInodeTree, masterContext.getJournalSystem()) : null;
+     // Sync executors should allow core threads to time out
+     mSyncPrefetchExecutor.allowCoreThreadTimeOut(true);
+     mSyncMetadataExecutor.allowCoreThreadTimeOut(true);
+@@ -748,7 +751,9 @@ public void start(Boolean isPrimary) throws IOException {
+                 () -> Configuration.getMs(PropertyKey.UNDERFS_CLEANUP_INTERVAL),
+                 Configuration.global(), mMasterContext.getUserState()));
+       }
+-      mAccessTimeUpdater.start();
++      if (mAccessTimeUpdater != null) {
++        mAccessTimeUpdater.start();
++      }
+       mSyncManager.start();
+       mLoadManager.start();
+     }
+@@ -762,7 +767,9 @@ public void stop() throws IOException {
+       mAsyncAuditLogWriter = null;
+     }
+     mSyncManager.stop();
+-    mAccessTimeUpdater.stop();
++    if (mAccessTimeUpdater != null) {
++      mAccessTimeUpdater.stop();
++    }
+     mLoadManager.stop();
+     super.stop();
+   }
+@@ -5338,7 +5345,9 @@ protected LockingScheme createSyncLockingScheme(AlluxioURI path,
+   }
+ 
+   protected void updateAccessTime(RpcContext rpcContext, Inode inode, long opTimeMs) {
+-    mAccessTimeUpdater.updateAccessTime(rpcContext.getJournalContext(), inode, opTimeMs);
++    if (mAccessTimeUpdater != null) {
++      mAccessTimeUpdater.updateAccessTime(rpcContext.getJournalContext(), inode, opTimeMs);
++    }
+   }
+ 
+   boolean isAclEnabled() {
