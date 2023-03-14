@@ -42,6 +42,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.protobuf.ByteString;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -701,6 +703,57 @@ public final class S3RestUtils {
       return Optional.empty();
     }
     return Optional.of(RateLimiter.create(rate));
+  }
+
+  /**
+   * List directories and files by given prefix and maxKeys.
+   * @param uriStatusProvider In order to unit tests, using function to mock filesystem.listStatus()
+   * @param prefix Prefix of file or directory
+   * @param maxKeys The number of Files and directories you want
+   * @return Directories and files with given prefix
+   */
+  public static List<URIStatus> listStatusByPrefix(
+      Function<AlluxioURI, List<URIStatus>> uriStatusProvider, String prefix, int maxKeys) {
+    AlluxioURI parent = new AlluxioURI(prefix);
+    if (!parent.isRoot()) {
+      parent = parent.getParent();
+    }
+    List<URIStatus> children = uriStatusProvider.apply(parent).stream()
+        .filter(uriStatus -> uriStatus.getPath().startsWith(prefix))
+        .limit(maxKeys).collect(Collectors.toList());
+    List<URIStatus> results = new ArrayList<>(children);
+    if (results.size() >= maxKeys) {
+      return results;
+    }
+    for (URIStatus child : children) {
+      if (!child.isFolder()) {
+        continue;
+      }
+      listStatus(uriStatusProvider, child, maxKeys, results);
+      if (results.size() >= maxKeys) {
+        return results;
+      }
+    }
+    return results;
+  }
+
+  private static void listStatus(Function<AlluxioURI, List<URIStatus>> uriStatusProvider,
+      URIStatus uri, int maxKeys, List<URIStatus> results) {
+    List<URIStatus> children = uriStatusProvider.apply(new AlluxioURI(uri.getPath())).stream()
+        .limit(maxKeys - results.size()).collect(Collectors.toList());
+    results.addAll(children);
+    if (results.size() >= maxKeys) {
+      return;
+    }
+    for (URIStatus child : children) {
+      if (!child.isFolder()) {
+        continue;
+      }
+      listStatus(uriStatusProvider, child, maxKeys, results);
+      if (results.size() >= maxKeys) {
+        return;
+      }
+    }
   }
 
     /**

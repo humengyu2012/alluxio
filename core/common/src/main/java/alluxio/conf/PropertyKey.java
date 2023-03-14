@@ -5367,6 +5367,14 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setDefaultValue(0)
           .setScope(Scope.SERVER)
           .build();
+  public static final PropertyKey PROXY_S3_OPTIMIZED_LIST_OBJECTS_ENABLE =
+      booleanBuilder(Name.PROXY_S3_OPTIMIZED_LIST_OBJECTS_ENABLE)
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
+          .setDescription("Whether to use an optimized way to list files. "
+              + "This results in more RPC calls, but is more memory friendly for s3 proxy.")
+          .setDefaultValue(false)
+          .setScope(Scope.SERVER)
+          .build();
 
   //
   // Locality related properties
@@ -8505,6 +8513,8 @@ public final class PropertyKey implements Comparable<PropertyKey> {
         "alluxio.proxy.s3.global.read.rate.limit.mb";
     public static final String PROXY_S3_SINGLE_CONNECTION_READ_RATE_LIMIT_MB =
         "alluxio.proxy.s3.single.connection.read.rate.limit.mb";
+    public static final String PROXY_S3_OPTIMIZED_LIST_OBJECTS_ENABLE =
+        "alluxio.proxy.s3.optimized.list.objects.enable";
 
     //
     // Locality related properties
