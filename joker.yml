@@ -1,0 +1,29 @@
+version: 2.0
+base_image: bionic
+components:
+  java: 1.8
+deps:
+  - maven
+  - npm
+
+build:
+  - bash build.sh
+
+test:
+  unittest:
+    - echo 0
+
+cache:
+  directories:
+    - $HOME/.m2/repository
+
+artifacts:
+  targets:
+    - big-data
+
+  big-data:
+    - path: alluxio-2.9.2-bin.tar.gz
+      name: alluxio-2.9.2-bin.tar.gz
+      labels:
+        - alluxio
+        - 2.9.2
