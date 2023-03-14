@@ -348,7 +348,7 @@ public class S3ObjectTask extends S3BaseTask {
             }
 
             // Check if the object had a specified "Content-Type"
-            res.type(S3RestUtils.deserializeContentType(status.getXAttr()));
+            res.type(S3RestUtils.deserializeContentType(status.getXAttr(), status.isFolder()));
 
             // Check if object had tags, if so we need to return the count
             // in the header "x-amz-tagging-count"
@@ -407,7 +407,7 @@ public class S3ObjectTask extends S3BaseTask {
             }
 
             // Check if the object had a specified "Content-Type"
-            res.type(S3RestUtils.deserializeContentType(status.getXAttr()));
+            res.type(S3RestUtils.deserializeContentType(status.getXAttr(), status.isFolder()));
             return res.build();
           } catch (FileDoesNotExistException e) {
             // must be null entity (content length 0) for S3A Filesystem

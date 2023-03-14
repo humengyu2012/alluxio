@@ -424,6 +424,9 @@ public final class S3RestUtils {
     return result;
   }
 
+  public final static MediaType APPLICATION_X_DIRECTORY_TYPE = new MediaType("application",
+      "x-directory");
+
   /**
    * Given xAttr, parses and returns the Content-Type header metadata
    * as its corresponding {@link MediaType}, or otherwise defaults
@@ -431,8 +434,9 @@ public final class S3RestUtils {
    * @param xAttr the Inode's xAttrs
    * @return the {@link MediaType} corresponding to the Content-Type header
    */
-  public static MediaType deserializeContentType(Map<String, byte[]> xAttr) {
-    MediaType type = MediaType.APPLICATION_OCTET_STREAM_TYPE;
+  public static MediaType deserializeContentType(Map<String, byte[]> xAttr, boolean isFolder) {
+    MediaType type =
+        isFolder ? APPLICATION_X_DIRECTORY_TYPE : MediaType.APPLICATION_OCTET_STREAM_TYPE;
     // Fetch the Content-Type from the Inode xAttr
     if (xAttr == null) {
       return type;
