@@ -11,11 +11,14 @@
 
 package alluxio.web;
 
+import alluxio.AlluxioURI;
 import alluxio.Constants;
 import alluxio.StreamCache;
 import alluxio.client.file.FileSystem;
 import alluxio.conf.Configuration;
 import alluxio.conf.PropertyKey;
+import alluxio.grpc.FileSystemMasterCommonPOptions;
+import alluxio.grpc.ListStatusPOptions;
 import alluxio.master.audit.AsyncUserAccessAuditLogWriter;
 import alluxio.metrics.MetricKey;
 import alluxio.metrics.MetricsSystem;
@@ -29,8 +32,10 @@ import alluxio.proxy.s3.S3RestUtils;
 import alluxio.util.ThreadFactoryUtils;
 import alluxio.util.io.PathUtils;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
 import com.google.common.util.concurrent.RateLimiter;
+import java.util.Optional;
 import org.eclipse.jetty.server.HttpChannel;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.servlet.ServletHolder;
@@ -142,7 +147,9 @@ public final class ProxyWebServer extends WebServer {
       public void service(final ServletRequest req, final ServletResponse res)
           throws ServletException, IOException {
         Stopwatch stopWatch = Stopwatch.createStarted();
-        super.service(req, res);
+        if (!loadMetadata(req)) {
+          super.service(req, res);
+        }
         if ((req instanceof HttpServletRequest) && (res instanceof HttpServletResponse)) {
           HttpServletRequest httpReq = (HttpServletRequest) req;
           HttpServletResponse httpRes = (HttpServletResponse) res;
@@ -186,6 +193,54 @@ public final class ProxyWebServer extends WebServer {
     mServletContextHandler
         .addServlet(rsServletHolder, PathUtils.concatPath(Constants.REST_API_PREFIX, "*"));
   }
+
+  private static final String LOAD_METADATA_PATH = "/api/v1/loadMetadata";
+  private static final String HTTP_METHOD_POST = "POST";
+  private static final String BUCKET = "bucket";
+  private static final String PATH = "path";
+  private static final String FORCE = "force";
+  private static final String RECURSIVE = "recursive";
+
+  /**
+   *
+   * @return if request is load metadata
+   */
+  public boolean loadMetadata(ServletRequest request) throws IOException {
+    if (!(request instanceof HttpServletRequest)) {
+      return false;
+    }
+    HttpServletRequest httpRequest = (HttpServletRequest) request;
+    String uri = httpRequest.getRequestURI();
+    if (!LOAD_METADATA_PATH.equals(uri) || !HTTP_METHOD_POST.equals(httpRequest.getMethod())) {
+      return false;
+    }
+    String bucket = Preconditions.checkNotNull(httpRequest.getParameter(BUCKET),
+        "bucket can not be null");
+    String path = Preconditions.checkNotNull(httpRequest.getParameter(PATH),
+        "path can not be null");
+    boolean force = Optional.ofNullable(httpRequest.getParameter(FORCE)).map(Boolean::parseBoolean)
+        .orElse(false);
+    boolean recursive = Optional.ofNullable(httpRequest.getParameter(RECURSIVE))
+        .map(Boolean::parseBoolean).orElse(false);
+    AlluxioURI alluxioURI = new AlluxioURI(String.format("/%s/%s", bucket, path));
+    ListStatusPOptions options;
+    if (force) {
+      options = ListStatusPOptions.newBuilder()
+          .setRecursive(recursive)
+          .setCommonOptions(FileSystemMasterCommonPOptions.newBuilder()
+              .setSyncIntervalMs(0).build())
+          .build();
+    } else {
+      options = ListStatusPOptions.newBuilder().setRecursive(recursive).build();
+    }
+    try {
+      mFileSystem.loadMetadata(alluxioURI, options);
+    } catch (Exception e) {
+      throw new IOException(e.getMessage(), e);
+    }
+    return true;
+  }
+
 
   @Override
   public void stop() throws Exception {
