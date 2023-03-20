@@ -242,24 +242,6 @@ public final class S3RestServiceHandler {
     });
   }
 
-  private String standardPrefix(String prefix) {
-    if (prefix == null) {
-      return null;
-    }
-    // replace multi '/' as '/'
-    prefix = prefix.replaceAll("/+", "/");
-    // let key not start with '/'
-    if (prefix.startsWith("/")) {
-      prefix = prefix.substring(1);
-    }
-    // let key not end with '/'
-    if (prefix.endsWith("/")) {
-      prefix = prefix.substring(0, prefix.length() - 1);
-    }
-    return prefix;
-  }
-
-
   /**
    * Gets a bucket and lists all the objects or bucket tags in it.
    * @param bucket the bucket name
@@ -294,7 +276,7 @@ public final class S3RestServiceHandler {
                             @QueryParam("policy") final String policy,
                             @QueryParam("policyStatus") final String policyStatus,
                             @QueryParam("uploads") final String uploads) {
-    final String prefixParam = standardPrefix(prefix);
+    final String prefixParam = S3RestUtils.standardPrefix(prefix);
     return S3RestUtils.call(bucket, () -> {
       Preconditions.checkNotNull(bucket, "required 'bucket' parameter is missing");
       if (acl != null) {
@@ -379,7 +361,8 @@ public final class S3RestServiceHandler {
             boolean optimizedListObjects = mSConf.getBoolean(
                 PropertyKey.PROXY_S3_OPTIMIZED_LIST_OBJECTS_ENABLE);
             if (prefixParam != null) {
-              path = parsePathWithDelimiter(path, prefixParam, AlluxioURI.SEPARATOR);
+              path = parsePathWithDelimiter(path, prefixParam, AlluxioURI.SEPARATOR,
+                  !optimizedListObjects);
             }
             if (optimizedListObjects) {
               // check and load metadata
