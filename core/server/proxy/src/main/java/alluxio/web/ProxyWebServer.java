@@ -173,14 +173,9 @@ public final class ProxyWebServer extends WebServer {
               getServletContext().setAttribute(ALLUXIO_PROXY_AUDIT_LOG_WRITER_KEY,
                   mAsyncAuditLogWriter);
 
-              getServletContext().setAttribute(PROXY_S3_V2_LIGHT_POOL,
-                  new ThreadPoolExecutor(8, 64, 0,
-                  TimeUnit.SECONDS, new ArrayBlockingQueue<>(64 * 1024),
-                  ThreadFactoryUtils.build("S3-LIGHTPOOL-%d", false)));
-              getServletContext().setAttribute(PROXY_S3_V2_HEAVY_POOL,
-                  new ThreadPoolExecutor(8, 64, 0,
-                  TimeUnit.SECONDS, new ArrayBlockingQueue<>(64 * 1024),
-                  ThreadFactoryUtils.build("S3-HEAVYPOOL-%d", false)));
+              getServletContext().setAttribute(PROXY_S3_V2_LIGHT_POOL, createLightThreadPool());
+              getServletContext().setAttribute(PROXY_S3_V2_HEAVY_POOL, createHeavyThreadPool());
+
               getServletContext().setAttribute(PROXY_S3_HANDLER_MAP, mS3HandlerMap);
             }
           });
@@ -284,5 +279,53 @@ public final class ProxyWebServer extends WebServer {
     } else {
       LOG.info(accessLog);
     }
+  }
+
+  private ThreadPoolExecutor createLightThreadPool() {
+    int lightCorePoolSize = Configuration.getInt(
+        PropertyKey.PROXY_S3_V2_ASYNC_LIGHT_POOL_CORE_THREAD_NUMBER);
+    Preconditions.checkArgument(lightCorePoolSize > 0,
+        PropertyKey.PROXY_S3_V2_ASYNC_LIGHT_POOL_CORE_THREAD_NUMBER.getName()
+            + " must be a positive integer.");
+    int lightMaximumPoolSize = Configuration.getInt(
+        PropertyKey.PROXY_S3_V2_ASYNC_LIGHT_POOL_MAXIMUM_THREAD_NUMBER);
+    Preconditions.checkArgument(lightMaximumPoolSize >= lightCorePoolSize,
+        PropertyKey.PROXY_S3_V2_ASYNC_LIGHT_POOL_MAXIMUM_THREAD_NUMBER.getName()
+            + " must be greater than or equal to the value of "
+            + PropertyKey.PROXY_S3_V2_ASYNC_LIGHT_POOL_CORE_THREAD_NUMBER.getName());
+    int lightPoolQueueSize = Configuration.getInt(
+        PropertyKey.PROXY_S3_V2_ASYNC_LIGHT_POOL_QUEUE_SIZE);
+    Preconditions.checkArgument(lightPoolQueueSize > 0,
+        PropertyKey.PROXY_S3_V2_ASYNC_LIGHT_POOL_QUEUE_SIZE.getName()
+            + " must be a positive integer.");
+    LOG.info("Create light thread pool with: corePoolSize={}, MaximumPoolSize={}, queueSize={}",
+        lightCorePoolSize, lightMaximumPoolSize, lightPoolQueueSize);
+    return new ThreadPoolExecutor(lightCorePoolSize, lightMaximumPoolSize, 0,
+        TimeUnit.SECONDS, new ArrayBlockingQueue<>(lightPoolQueueSize),
+        ThreadFactoryUtils.build("S3-LIGHTPOOL-%d", false));
+  }
+
+  private ThreadPoolExecutor createHeavyThreadPool() {
+    int heavyCorePoolSize = Configuration.getInt(
+        PropertyKey.PROXY_S3_V2_ASYNC_HEAVY_POOL_CORE_THREAD_NUMBER);
+    Preconditions.checkArgument(heavyCorePoolSize > 0,
+        PropertyKey.PROXY_S3_V2_ASYNC_HEAVY_POOL_CORE_THREAD_NUMBER.getName()
+            + " must be a positive integer.");
+    int heavyMaximumPoolSize = Configuration.getInt(
+        PropertyKey.PROXY_S3_V2_ASYNC_HEAVY_POOL_MAXIMUM_THREAD_NUMBER);
+    Preconditions.checkArgument(heavyMaximumPoolSize >= heavyCorePoolSize,
+        PropertyKey.PROXY_S3_V2_ASYNC_HEAVY_POOL_MAXIMUM_THREAD_NUMBER.getName()
+            + " must be greater than or equal to the value of "
+            + PropertyKey.PROXY_S3_V2_ASYNC_HEAVY_POOL_CORE_THREAD_NUMBER.getName());
+    int heavyPoolQueueSize = Configuration.getInt(
+        PropertyKey.PROXY_S3_V2_ASYNC_HEAVY_POOL_QUEUE_SIZE);
+    Preconditions.checkArgument(heavyPoolQueueSize > 0,
+        PropertyKey.PROXY_S3_V2_ASYNC_HEAVY_POOL_QUEUE_SIZE.getName()
+            + " must be a positive integer.");
+    LOG.info("Create heavy thread pool with: corePoolSize={}, MaximumPoolSize={}, queueSize={}",
+        heavyCorePoolSize, heavyMaximumPoolSize, heavyPoolQueueSize);
+    return new ThreadPoolExecutor(heavyCorePoolSize, heavyMaximumPoolSize, 0,
+        TimeUnit.SECONDS, new ArrayBlockingQueue<>(heavyPoolQueueSize),
+        ThreadFactoryUtils.build("S3-HEAVYPOOL-%d", false));
   }
 }

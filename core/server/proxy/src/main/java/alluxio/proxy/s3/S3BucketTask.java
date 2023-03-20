@@ -217,30 +217,42 @@ public class S3BucketTask extends S3BaseTask {
       super(handler, opType);
     }
 
-    private String normalizeS3Prefix(String prefix, char delimiter) {
+    /**
+     * Normalize the prefix from S3 request.
+     **/
+    private String normalizeS3Prefix(String prefix, char delimiter, boolean returnParent) {
       if (prefix != null) {
-        int pos = prefix.lastIndexOf(delimiter);
-        if (pos >= 0) {
-          return prefix.substring(0, pos + 1);
+        if (returnParent) {
+          int pos = prefix.lastIndexOf(delimiter);
+          if (pos >= 0) {
+            return prefix.substring(0, pos + 1);
+          }
+        } else {
+          return prefix;
         }
       }
-      return S3Constants.EMPTY;
+      return "";
     }
 
     private String parsePathWithDelimiter(String bucketPath, String prefix, String delimiter)
-            throws S3Exception {
+        throws S3Exception {
+      return parsePathWithDelimiter(bucketPath, prefix, delimiter, true);
+    }
+
+    private String parsePathWithDelimiter(String bucketPath, String prefix, String delimiter,
+        boolean returnParent) throws S3Exception {
       // TODO(czhu): allow non-"/" delimiters
       // Alluxio only support use / as delimiter
       if (!delimiter.equals(AlluxioURI.SEPARATOR)) {
         throw new S3Exception(bucketPath, new S3ErrorCode(
-                S3ErrorCode.PRECONDITION_FAILED.getCode(),
-                "Alluxio S3 API only support / as delimiter.",
-                S3ErrorCode.PRECONDITION_FAILED.getStatus()));
+            S3ErrorCode.PRECONDITION_FAILED.getCode(),
+            "Alluxio S3 API only support / as delimiter.",
+            S3ErrorCode.PRECONDITION_FAILED.getStatus()));
       }
       char delim = AlluxioURI.SEPARATOR.charAt(0);
       String normalizedBucket =
-              bucketPath.replace(S3Constants.BUCKET_SEPARATOR, AlluxioURI.SEPARATOR);
-      String normalizedPrefix = normalizeS3Prefix(prefix, delim);
+          bucketPath.replace(S3Constants.BUCKET_SEPARATOR, AlluxioURI.SEPARATOR);
+      String normalizedPrefix = normalizeS3Prefix(prefix, delim, returnParent);
 
       if (!normalizedPrefix.isEmpty() && !normalizedPrefix.startsWith(AlluxioURI.SEPARATOR)) {
         normalizedPrefix = AlluxioURI.SEPARATOR + normalizedPrefix;
@@ -259,7 +271,7 @@ public class S3BucketTask extends S3BaseTask {
           S3RestUtils.checkPathIsAlluxioDirectory(userFs, path, auditContext);
           String markerParam = mHandler.getQueryParameter("marker");
           String maxKeysParam = mHandler.getQueryParameter("max-keys");
-          String prefixParam = mHandler.getQueryParameter("prefix");
+          String prefixParam = S3RestUtils.standardPrefix(mHandler.getQueryParameter("prefix"));
           String delimiterParam = mHandler.getQueryParameter("delimiter");
           String encodingTypeParam = mHandler.getQueryParameter("encoding-type");
           String listTypeParam = mHandler.getQueryParameter("list-type");
@@ -286,18 +298,33 @@ public class S3BucketTask extends S3BaseTask {
             //             only list the direct children if delimiter is not null
             if (StringUtils.isNotEmpty(delimiterParam)) {
               if (prefixParam == null) {
-                path = parsePathWithDelimiter(path, S3Constants.EMPTY, delimiterParam);
+                path = parsePathWithDelimiter(path, "", delimiterParam);
               } else {
                 path = parsePathWithDelimiter(path, prefixParam, delimiterParam);
               }
               children = userFs.listStatus(new AlluxioURI(path));
             } else {
+              boolean optimizedListObjects = mHandler.getMetaFS().getConf().getBoolean(
+                  PropertyKey.PROXY_S3_OPTIMIZED_LIST_OBJECTS_ENABLE);
               if (prefixParam != null) {
-                path = parsePathWithDelimiter(path, prefixParam, AlluxioURI.SEPARATOR);
+                path = parsePathWithDelimiter(path, prefixParam, AlluxioURI.SEPARATOR,
+                    !optimizedListObjects);
               }
-              ListStatusPOptions options = ListStatusPOptions.newBuilder()
-                  .setRecursive(true).build();
-              children = userFs.listStatus(new AlluxioURI(path), options);
+              if (optimizedListObjects) {
+                // check and load metadata
+                userFs.exists(new AlluxioURI(path));
+                children = S3RestUtils.listStatusByPrefix(uri -> {
+                  try {
+                    return userFs.listStatus(uri);
+                  } catch (Exception e) {
+                    throw new RuntimeException(e);
+                  }
+                }, path, maxKeys);
+              } else {
+                ListStatusPOptions options = ListStatusPOptions.newBuilder().setRecursive(true)
+                    .build();
+                children = userFs.listStatus(new AlluxioURI(path), options);
+              }
             }
           } catch (FileDoesNotExistException e) {
             // Since we've called S3RestUtils.checkPathIsAlluxioDirectory() on the bucket path

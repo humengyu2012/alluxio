@@ -760,6 +760,23 @@ public final class S3RestUtils {
     }
   }
 
+  public static String standardPrefix(String prefix) {
+    if (prefix == null) {
+      return null;
+    }
+    // replace multi '/' as '/'
+    prefix = prefix.replaceAll("/+", "/");
+    // let key not start with '/'
+    if (prefix.startsWith("/")) {
+      prefix = prefix.substring(1);
+    }
+    // let key not end with '/'
+    if (prefix.endsWith("/")) {
+      prefix = prefix.substring(0, prefix.length() - 1);
+    }
+    return prefix;
+  }
+
     /**
      * Comparator based on uri name， treat uri name as a Long number.
      */
