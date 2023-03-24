@@ -390,9 +390,9 @@ public class S3ObjectTask extends S3BaseTask {
             mOPType.name(), user, mHandler.getBucket(), mHandler.getObject())) {
           try {
             URIStatus status = userFs.getStatus(objectUri);
-            if (status.isFolder() && !mHandler.getObject().endsWith(AlluxioURI.SEPARATOR)) {
-              throw new FileDoesNotExistException(status.getPath() + " is a directory");
-            }
+//            if (status.isFolder() && !mHandler.getObject().endsWith(AlluxioURI.SEPARATOR)) {
+//              throw new FileDoesNotExistException(status.getPath() + " is a directory");
+//            }
             Response.ResponseBuilder res = Response.ok()
                 .lastModified(new Date(status.getLastModificationTimeMs()))
                 .header(S3Constants.S3_CONTENT_LENGTH_HEADER,
