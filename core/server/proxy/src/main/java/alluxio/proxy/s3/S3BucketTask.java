@@ -319,7 +319,7 @@ public class S3BucketTask extends S3BaseTask {
                   } catch (Exception e) {
                     throw new RuntimeException(e);
                   }
-                }, path, maxKeys);
+                }, path, maxKeys + 1);
               } else {
                 ListStatusPOptions options = ListStatusPOptions.newBuilder().setRecursive(true)
                     .build();

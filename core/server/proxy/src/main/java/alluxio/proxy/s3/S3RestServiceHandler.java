@@ -373,7 +373,7 @@ public final class S3RestServiceHandler {
                 } catch (Exception e) {
                   throw new RuntimeException(e);
                 }
-              }, path, maxKeys);
+              }, path, maxKeys + 1);
             } else {
               ListStatusPOptions options = ListStatusPOptions.newBuilder().setRecursive(true)
                   .build();

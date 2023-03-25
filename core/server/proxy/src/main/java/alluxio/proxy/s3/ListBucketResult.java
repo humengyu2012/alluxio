@@ -203,6 +203,10 @@ public class ListBucketResult {
     mContents = children.stream()
         //marker filter
         .filter(status -> {
+          // filter bucket directory
+          if (status.getPath().equals(new AlluxioURI(bucketPrefix).getPath())) {
+            return false;
+          }
           String path = status.getPath().substring(bucketPrefix.length());
           return (path.startsWith(mPrefix) //prefix filter
               && path.compareTo(marker) > 0 //marker filter
