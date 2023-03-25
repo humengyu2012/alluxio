@@ -280,6 +280,13 @@ public class S3BucketTask extends S3BaseTask {
 
           int maxKeys = maxKeysParam == null
               ? ListBucketOptions.DEFAULT_MAX_KEYS : Integer.parseInt(maxKeysParam);
+          int maxKeysLimit = mHandler.getMetaFS().getConf().getInt(
+              PropertyKey.PROXY_S3_LIST_OBJECTS_MAX_KEYS);
+          if (maxKeysLimit > 0 && maxKeys > maxKeysLimit) {
+            throw new IllegalArgumentException(
+                "The maxKeys is too big, must less than or equals " + maxKeysLimit);
+          }
+
           Integer listType = listTypeParam == null ? null : Integer.parseInt(listTypeParam);
           ListBucketOptions listBucketOptions = ListBucketOptions.defaults()
                   .setMarker(markerParam)

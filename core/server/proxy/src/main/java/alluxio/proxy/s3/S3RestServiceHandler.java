@@ -328,6 +328,11 @@ public final class S3RestServiceHandler {
         }
         // Otherwise, this is ListObjects(v2)
         int maxKeys = maxKeysParam == null ? ListBucketOptions.DEFAULT_MAX_KEYS : maxKeysParam;
+        int maxKeysLimit = mSConf.getInt(PropertyKey.PROXY_S3_LIST_OBJECTS_MAX_KEYS);
+        if (maxKeysLimit > 0 && maxKeys > maxKeysLimit) {
+          throw new IllegalArgumentException(
+              "The maxKeys is too big, must less than or equals " + maxKeysLimit);
+        }
         if (encodingTypeParam != null
             && !StringUtils.equals(encodingTypeParam, ListBucketOptions.DEFAULT_ENCODING_TYPE)) {
           throw new S3Exception(bucket, new S3ErrorCode(
