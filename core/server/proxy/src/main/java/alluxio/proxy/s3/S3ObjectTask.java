@@ -308,6 +308,13 @@ public class S3ObjectTask extends S3BaseTask {
             mOPType.name(), user, mHandler.getBucket(), mHandler.getObject())) {
           try {
             URIStatus status = userFs.getStatus(objectUri);
+            // load block
+            BlockLoader blockLoader = (BlockLoader) mHandler.getServletContext()
+                .getAttribute(ProxyWebServer.BLOCK_LOADER_RESOURCE_KEY);
+            if (blockLoader != null){
+              blockLoader.load(status);
+            }
+
             FileInStream is = userFs.openFile(objectUri);
             S3RangeSpec s3Range = S3RangeSpec.Factory.create(range);
             RangeFileInStream ris = RangeFileInStream.Factory.create(
