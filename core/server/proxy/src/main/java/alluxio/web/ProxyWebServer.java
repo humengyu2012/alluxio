@@ -15,6 +15,7 @@ import alluxio.AlluxioURI;
 import alluxio.Constants;
 import alluxio.StreamCache;
 import alluxio.client.file.FileSystem;
+import alluxio.client.file.FileSystemContext;
 import alluxio.conf.Configuration;
 import alluxio.conf.PropertyKey;
 import alluxio.grpc.FileSystemMasterCommonPOptions;
@@ -23,6 +24,7 @@ import alluxio.master.audit.AsyncUserAccessAuditLogWriter;
 import alluxio.metrics.MetricKey;
 import alluxio.metrics.MetricsSystem;
 import alluxio.proxy.ProxyProcess;
+import alluxio.proxy.s3.BlockLoader;
 import alluxio.proxy.s3.CompleteMultipartUploadHandler;
 import alluxio.proxy.s3.S3BaseTask;
 import alluxio.proxy.s3.S3Handler;
@@ -72,8 +74,10 @@ public final class ProxyWebServer extends WebServer {
   public static final String SERVER_CONFIGURATION_RESOURCE_KEY = "Server Configuration";
   public static final String ALLUXIO_PROXY_AUDIT_LOG_WRITER_KEY = "Alluxio Proxy Audit Log Writer";
   public static final String GLOBAL_RATE_LIMITER_SERVLET_RESOURCE_KEY = "Global Rate Limiter";
+  public static final String BLOCK_LOADER_RESOURCE_KEY = "Block Loader";
 
   private final RateLimiter mGlobalRateLimiter;
+  private final BlockLoader mBlockLoader;
   private final FileSystem mFileSystem;
   private AsyncUserAccessAuditLogWriter mAsyncAuditLogWriter;
   public static final String PROXY_S3_HANDLER_MAP = "Proxy S3 Handler Map";
@@ -115,6 +119,11 @@ public final class ProxyWebServer extends WebServer {
     long rate =
         (long) Configuration.getInt(PropertyKey.PROXY_S3_GLOBAL_READ_RATE_LIMIT_MB) * Constants.MB;
     mGlobalRateLimiter = S3RestUtils.createRateLimiter(rate).orElse(null);
+    if (Configuration.getBoolean(PropertyKey.PROXY_S3_AUTO_LOAD_ENABLE)) {
+      mBlockLoader = new BlockLoader(FileSystemContext.create());
+    } else {
+      mBlockLoader = null;
+    }
 
     if (Configuration.getBoolean(PropertyKey.PROXY_AUDIT_LOGGING_ENABLED)) {
       mAsyncAuditLogWriter = new AsyncUserAccessAuditLogWriter("PROXY_AUDIT_LOG");
@@ -140,6 +149,9 @@ public final class ProxyWebServer extends WebServer {
         if (mGlobalRateLimiter != null) {
           getServletContext().setAttribute(GLOBAL_RATE_LIMITER_SERVLET_RESOURCE_KEY,
               mGlobalRateLimiter);
+        }
+        if (mBlockLoader != null) {
+          getServletContext().setAttribute(BLOCK_LOADER_RESOURCE_KEY, mBlockLoader);
         }
       }
 
@@ -177,6 +189,14 @@ public final class ProxyWebServer extends WebServer {
               getServletContext().setAttribute(PROXY_S3_V2_HEAVY_POOL, createHeavyThreadPool());
 
               getServletContext().setAttribute(PROXY_S3_HANDLER_MAP, mS3HandlerMap);
+
+              if (mGlobalRateLimiter != null) {
+                getServletContext().setAttribute(GLOBAL_RATE_LIMITER_SERVLET_RESOURCE_KEY,
+                    mGlobalRateLimiter);
+              }
+              if (mBlockLoader != null) {
+                getServletContext().setAttribute(BLOCK_LOADER_RESOURCE_KEY, mBlockLoader);
+              }
             }
           });
       mServletContextHandler

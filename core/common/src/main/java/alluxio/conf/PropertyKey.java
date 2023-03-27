@@ -5417,6 +5417,13 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setDefaultValue(false)
           .setScope(Scope.SERVER)
           .build();
+  public static final PropertyKey PROXY_S3_AUTO_LOAD_ENABLE =
+      booleanBuilder(Name.PROXY_S3_AUTO_LOAD_ENABLE)
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
+          .setDescription("Whether auto load blocks.")
+          .setDefaultValue(false)
+          .setScope(Scope.SERVER)
+          .build();
   public static final PropertyKey PROXY_S3_LIST_OBJECTS_MAX_KEYS =
       intBuilder(Name.PROXY_S3_LIST_OBJECTS_MAX_KEYS)
           .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
@@ -8577,6 +8584,8 @@ public final class PropertyKey implements Comparable<PropertyKey> {
         "alluxio.proxy.s3.single.connection.read.rate.limit.mb";
     public static final String PROXY_S3_OPTIMIZED_LIST_OBJECTS_ENABLE =
         "alluxio.proxy.s3.optimized.list.objects.enable";
+    public static final String PROXY_S3_AUTO_LOAD_ENABLE =
+        "alluxio.proxy.s3.optimized.auto.load.enable";
     public static final String PROXY_S3_LIST_OBJECTS_MAX_KEYS =
         "alluxio.proxy.s3.list.objects.max.keys";
 
