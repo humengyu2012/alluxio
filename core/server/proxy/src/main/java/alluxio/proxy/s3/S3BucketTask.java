@@ -318,8 +318,11 @@ public class S3BucketTask extends S3BaseTask {
                     !optimizedListObjects);
               }
               if (optimizedListObjects) {
-                // check and load metadata
-                userFs.exists(new AlluxioURI(path));
+                try {
+                  userFs.getStatus(new AlluxioURI(path));
+                } catch (Exception e) {
+                  // 这里是为了强制加载新增目录的元数据，防止开了元数据缓存以后，list 不到
+                }
                 children = S3RestUtils.listStatusByPrefix(uri -> {
                   try {
                     return userFs.listStatus(uri);
