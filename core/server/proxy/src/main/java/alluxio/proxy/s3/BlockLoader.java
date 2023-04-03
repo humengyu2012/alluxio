@@ -11,6 +11,8 @@ import alluxio.client.file.URIStatus;
 import alluxio.client.file.options.InStreamOptions;
 import alluxio.collections.Pair;
 import alluxio.conf.AlluxioConfiguration;
+import alluxio.conf.Configuration;
+import alluxio.conf.PropertyKey;
 import alluxio.grpc.CacheRequest;
 import alluxio.grpc.OpenFilePOptions;
 import alluxio.proto.dataserver.Protocol;
@@ -22,8 +24,12 @@ import alluxio.wire.FileBlockInfo;
 import alluxio.wire.WorkerNetAddress;
 import com.google.common.collect.ImmutableMap;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -37,20 +43,59 @@ public class BlockLoader {
 
   private static final int ASYNC_LOAD_BLOCK_THREAD_NUMBER = 10;
 
-  private final Set<Long> loadingBlocks;
+  // blockId -> ts
+  private final Map<Long, Long> loadingBlocks;
   private final FileSystemContext fsContext;
   private final ThreadPoolExecutor pool;
+  private final Timer timer;
+  private final long period;
 
   public BlockLoader(FileSystemContext fsContext) {
     this.fsContext = fsContext;
-    this.loadingBlocks = ConcurrentHashMap.newKeySet();
+    this.loadingBlocks = new ConcurrentHashMap<>(64 * 1024);
     this.pool = new ThreadPoolExecutor(ASYNC_LOAD_BLOCK_THREAD_NUMBER,
         ASYNC_LOAD_BLOCK_THREAD_NUMBER, 0, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
+    this.timer = new Timer();
+    this.period = Configuration.getLong(PropertyKey.PROXY_S3_AUTO_LOAD_CLEAR_LOADING_BLOCKS_PERIOD);
+    timer.schedule(new TimerTask() {
+      @Override
+      public void run() {
+        try {
+          clearLoadingBlocks();
+        } catch (Exception e) {
+          LOG.warn("Can not clear loading blocks", e);
+        }
+      }
+    }, period, period);
+  }
+
+  /**
+   * 十分钟清理一次 block 去重集合，这里可以用 bitmap 优化内存，用优先级队列按 ts 排序加快遍历速度
+   */
+  private void clearLoadingBlocks() {
+    LOG.info("Start clear expired loading blocks, current loading blocks number is {}",
+        loadingBlocks.size());
+    long current = System.currentTimeMillis();
+    for (Entry<Long, Long> entry : new HashMap<>(loadingBlocks).entrySet()) {
+      long blockId = entry.getKey();
+      long ts = entry.getValue();
+      if (current - ts > period) {
+        loadingBlocks.remove(blockId);
+        LOG.info("Remove expired block: {} from loading blocks", blockId);
+      }
+    }
+    LOG.info("Clear expired loading blocks finished, current loading blocks number is {}",
+        loadingBlocks.size());
   }
 
   public void load(URIStatus status) {
     try {
-      if (status.getInAlluxioPercentage() == 100) {
+      if (status.getInAlluxioPercentage() == 100 || status.getLength() == 0) {
+        for (Long blockId : status.getBlockIds()) {
+          if (loadingBlocks.remove(blockId) != null) {
+            LOG.info("Remove cached block: {} from loading blocks", blockId);
+          }
+        }
         return;
       }
       AlluxioURI filePath = new AlluxioURI(status.getPath());
@@ -61,7 +106,6 @@ public class BlockLoader {
     } catch (Exception e) {
       LOG.warn("Can not load blocks", e);
     }
-
   }
 
   public List<Runnable> getLoadBlockTasks(AlluxioURI filePath, URIStatus status, boolean local,
@@ -77,9 +121,14 @@ public class BlockLoader {
       List<BlockLocation> locations = blockInfo.getLocations();
       // 代表已经有 worker 缓存了这个 block
       if (locations.size() != 0) {
+        // 及时清理，节省内存以及防止后续有 free 操作导致不能自动缓存 block
+        if (loadingBlocks.remove(blockId) != null) {
+          LOG.info("Remove cached block: {} from loading blocks", blockId);
+        }
+
         continue;
       }
-      if (!loadingBlocks.add(blockId)) {
+      if (loadingBlocks.putIfAbsent(blockId, System.currentTimeMillis()) != null) {
         continue;
       }
       tasks.add(() -> {
@@ -98,9 +147,8 @@ public class BlockLoader {
           LOG.info("Load block: blockId = {}, worker = {}", blockId, dataSource.getHost());
           cacheBlock(blockId, dataSource, status, openUfsBlockOptions, async);
         } catch (Exception e) {
-          LOG.warn("Can not cache block: {}", blockId, e);
-        } finally {
           loadingBlocks.remove(blockId);
+          LOG.warn("Can not cache block: {}", blockId, e);
         }
       });
     }
