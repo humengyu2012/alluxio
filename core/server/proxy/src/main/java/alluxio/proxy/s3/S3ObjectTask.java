@@ -315,10 +315,19 @@ public class S3ObjectTask extends S3BaseTask {
               blockLoader.load(status);
             }
 
-            FileInStream is = userFs.openFile(objectUri);
             S3RangeSpec s3Range = S3RangeSpec.Factory.create(range);
-            RangeFileInStream ris = RangeFileInStream.Factory.create(
-                is, status.getLength(), s3Range);
+            InputStream ris;
+            if (mHandler.getMetaFS().getConf().getBoolean(PropertyKey.PROXY_S3_REOPEN_READ_ENABLE)
+                && s3Range.getLength(status.getLength()) == status.getLength()
+                && status.getLength() > MergedInputStream.RANGE_SIZE
+                && status.getInAlluxioPercentage() != 100) {
+              LOG.info("Use merged inputStream for {}", objectPath);
+              ris = MergedInputStream.create(userFs, status);
+            } else {
+              FileInStream is = userFs.openFile(objectUri);
+              ris = RangeFileInStream.Factory.create(
+                  is, status.getLength(), s3Range);
+            }
 
             InputStream inputStream;
             RateLimiter globalRateLimiter = (RateLimiter) mHandler.getServletContext()
