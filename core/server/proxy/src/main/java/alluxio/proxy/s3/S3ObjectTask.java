@@ -321,7 +321,7 @@ public class S3ObjectTask extends S3BaseTask {
                 && s3Range.getLength(status.getLength()) == status.getLength()
                 && status.getLength() > MergedInputStream.RANGE_SIZE
                 && status.getInAlluxioPercentage() != 100) {
-              LOG.info("Use merged inputStream for {}", objectPath);
+              LOG.info("Use merged inputStream for {}", objectUri);
               ris = MergedInputStream.create(userFs, status);
             } else {
               FileInStream is = userFs.openFile(objectUri);
