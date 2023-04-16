@@ -69,6 +69,34 @@ public class MergedInputStream extends InputStream {
   }
 
   @Override
+  public long skip(long n) throws IOException {
+    if (n <= 0) {
+      return 0;
+    }
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public int available() throws IOException {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public synchronized void mark(int readlimit) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public synchronized void reset() throws IOException {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public boolean markSupported() {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
   public void close() throws IOException {
     if (inputStream != null) {
       inputStream.close();
