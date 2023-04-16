@@ -5,7 +5,7 @@ import alluxio.Constants;
 import alluxio.client.file.FileInStream;
 import alluxio.client.file.FileSystem;
 import alluxio.client.file.URIStatus;
-import com.google.common.io.ByteStreams;
+import alluxio.proxy.s3.RangeFileInStream.Factory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.LinkedList;
@@ -84,7 +84,8 @@ public class MergedInputStream extends InputStream {
     long length = status.getLength();
     long offset = 0;
     while (offset < length) {
-      final long finalOffset = offset;
+      final long start = offset;
+      final long end = Math.min(start + rangeSize, length);
       suppliers.add(() -> {
         FileInStream fileInStream;
         try {
@@ -93,7 +94,8 @@ public class MergedInputStream extends InputStream {
           throw new IllegalStateException(e);
         }
         try {
-          fileInStream.seek(finalOffset);
+          S3RangeSpec s3RangeSpec = new S3RangeSpec(start, end);
+          return Factory.create(fileInStream, length, s3RangeSpec);
         } catch (Exception e) {
           try {
             fileInStream.close();
@@ -102,9 +104,8 @@ public class MergedInputStream extends InputStream {
           }
           throw new IllegalStateException(e);
         }
-        return ByteStreams.limit(fileInStream, rangeSize);
       });
-      offset += rangeSize;
+      offset = end;
     }
     return new MergedInputStream(suppliers);
   }
