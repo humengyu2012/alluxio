@@ -5448,6 +5448,14 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setDefaultValue(-1)
           .setScope(Scope.SERVER)
           .build();
+  public static final PropertyKey PROXY_S3_REOPEN_READ_ENABLE =
+      booleanBuilder(Name.PROXY_S3_REOPEN_READ_ENABLE)
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
+          .setDescription("Reopen read will split file into multiple 1G ranges, "
+              + "the block locations will be flush when each range is read.")
+          .setDefaultValue(false)
+          .setScope(Scope.SERVER)
+          .build();
 
   //
   // Locality related properties
@@ -8608,6 +8616,8 @@ public final class PropertyKey implements Comparable<PropertyKey> {
         "alluxio.proxy.s3.optimized.auto.load.clear.loading.blocks.period";
     public static final String PROXY_S3_LIST_OBJECTS_MAX_KEYS =
         "alluxio.proxy.s3.list.objects.max.keys";
+    public static final String PROXY_S3_REOPEN_READ_ENABLE =
+        "alluxio.proxy.s3.reopen.read.enable";
 
     //
     // Locality related properties
