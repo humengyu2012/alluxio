@@ -41,8 +41,8 @@ public class BlockLoader {
 
   private static final Logger LOG = LoggerFactory.getLogger(BlockLoader.class);
 
-  private static final int ASYNC_LOAD_BLOCK_THREAD_NUMBER = 10;
-
+  private final int threadNum = Configuration.getInt(
+      PropertyKey.PROXY_S3_AUTO_LOAD_ASYNC_THREAD);
   // blockId -> ts
   private final Map<Long, Long> loadingBlocks;
   private final FileSystemContext fsContext;
@@ -53,8 +53,12 @@ public class BlockLoader {
   public BlockLoader(FileSystemContext fsContext) {
     this.fsContext = fsContext;
     this.loadingBlocks = new ConcurrentHashMap<>(64 * 1024);
-    this.pool = new ThreadPoolExecutor(ASYNC_LOAD_BLOCK_THREAD_NUMBER,
-        ASYNC_LOAD_BLOCK_THREAD_NUMBER, 0, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
+    if (threadNum <= 0) {
+      this.pool = null;
+    } else {
+      this.pool = new ThreadPoolExecutor(threadNum, threadNum, 0, TimeUnit.MILLISECONDS,
+          new LinkedBlockingQueue<>());
+    }
     this.timer = new Timer();
     this.period = Configuration.getLong(PropertyKey.PROXY_S3_AUTO_LOAD_CLEAR_LOADING_BLOCKS_PERIOD);
     timer.schedule(new TimerTask() {
@@ -101,7 +105,12 @@ public class BlockLoader {
       AlluxioURI filePath = new AlluxioURI(status.getPath());
       List<Runnable> loadBlockTasks = getLoadBlockTasks(filePath, status, false, true);
       for (Runnable task : loadBlockTasks) {
-        pool.execute(task);
+        if (pool != null) {
+          pool.execute(task);
+        } else {
+          // task 已经做了异常处理
+          task.run();
+        }
       }
     } catch (Exception e) {
       LOG.warn("Can not load blocks", e);
