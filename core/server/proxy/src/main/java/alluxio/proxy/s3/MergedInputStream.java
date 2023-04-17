@@ -1,11 +1,12 @@
 package alluxio.proxy.s3;
 
 import alluxio.AlluxioURI;
-import alluxio.Constants;
 import alluxio.client.file.FileInStream;
 import alluxio.client.file.FileSystem;
 import alluxio.client.file.URIStatus;
-import alluxio.proxy.s3.RangeFileInStream.Factory;
+import alluxio.conf.Configuration;
+import alluxio.conf.PropertyKey;
+import com.google.common.io.ByteStreams;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.LinkedList;
@@ -103,8 +104,7 @@ public class MergedInputStream extends InputStream {
     }
   }
 
-  // TODO: make it configurable
-  public static long RANGE_SIZE = Constants.GB;
+  public static long RANGE_SIZE = Configuration.getInt(PropertyKey.PROXY_S3_REOPEN_READ_RANGE_SIZE);
 
   public static MergedInputStream create(FileSystem fileSystem, URIStatus status, long rangeSize) {
     AlluxioURI alluxioURI = new AlluxioURI(status.getPath());
@@ -122,8 +122,8 @@ public class MergedInputStream extends InputStream {
           throw new IllegalStateException(e);
         }
         try {
-          S3RangeSpec s3RangeSpec = new S3RangeSpec(start, end);
-          return Factory.create(fileInStream, length, s3RangeSpec);
+          fileInStream.seek(start);
+          return ByteStreams.limit(fileInStream, rangeSize);
         } catch (Exception e) {
           try {
             fileInStream.close();

@@ -5440,6 +5440,13 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setDefaultValue(10 * 60 * 1000L)
           .setScope(Scope.SERVER)
           .build();
+  public static final PropertyKey PROXY_S3_AUTO_LOAD_ASYNC_THREAD =
+      intBuilder(Name.PROXY_S3_AUTO_LOAD_ASYNC_THREAD)
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
+          .setDescription("The thread number of async blocks.")
+          .setDefaultValue(10)
+          .setScope(Scope.SERVER)
+          .build();
   public static final PropertyKey PROXY_S3_LIST_OBJECTS_MAX_KEYS =
       intBuilder(Name.PROXY_S3_LIST_OBJECTS_MAX_KEYS)
           .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
@@ -5451,9 +5458,17 @@ public final class PropertyKey implements Comparable<PropertyKey> {
   public static final PropertyKey PROXY_S3_REOPEN_READ_ENABLE =
       booleanBuilder(Name.PROXY_S3_REOPEN_READ_ENABLE)
           .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
-          .setDescription("Reopen read will split file into multiple 1G ranges, "
+          .setDescription("Reopen read will split file into multiple ranges "
+              + "with size alluxio.proxy.s3.reopen.read.range.size, "
               + "the block locations will be flush when each range is read.")
           .setDefaultValue(false)
+          .setScope(Scope.SERVER)
+          .build();
+  public static final PropertyKey PROXY_S3_REOPEN_READ_RANGE_SIZE =
+      intBuilder(Name.PROXY_S3_REOPEN_READ_RANGE_SIZE)
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
+          .setDescription("See alluxio.proxy.s3.reopen.read.enable")
+          .setDefaultValue(128 * 1024 * 1024)
           .setScope(Scope.SERVER)
           .build();
 
@@ -8614,10 +8629,14 @@ public final class PropertyKey implements Comparable<PropertyKey> {
         "alluxio.proxy.s3.optimized.auto.load.enable";
     public static final String PROXY_S3_AUTO_LOAD_CLEAR_LOADING_BLOCKS_PERIOD =
         "alluxio.proxy.s3.optimized.auto.load.clear.loading.blocks.period";
+    public static final String PROXY_S3_AUTO_LOAD_ASYNC_THREAD =
+        "alluxio.proxy.s3.optimized.auto.load.async.thread";
     public static final String PROXY_S3_LIST_OBJECTS_MAX_KEYS =
         "alluxio.proxy.s3.list.objects.max.keys";
     public static final String PROXY_S3_REOPEN_READ_ENABLE =
         "alluxio.proxy.s3.reopen.read.enable";
+    public static final String PROXY_S3_REOPEN_READ_RANGE_SIZE =
+        "alluxio.proxy.s3.reopen.read.range.size";
 
     //
     // Locality related properties
