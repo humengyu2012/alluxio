@@ -23,6 +23,8 @@ import alluxio.wire.BlockLocation;
 import alluxio.wire.FileBlockInfo;
 import alluxio.wire.WorkerNetAddress;
 import com.google.common.collect.ImmutableMap;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -191,5 +193,29 @@ public class BlockLoader {
     }
   }
 
+
+  private static final String LOCAL_NAME;
+
+  static {
+    try {
+      LOCAL_NAME = InetAddress.getLocalHost().getCanonicalHostName();
+    } catch (UnknownHostException e) {
+      LOG.error("Can not get local name", e);
+      throw new RuntimeException(e);
+    }
+  }
+
+  public static boolean allBlocksInLocal(URIStatus status) {
+    List<FileBlockInfo> fileBlockInfos = status.getFileBlockInfos();
+    for (FileBlockInfo fileBlockInfo : fileBlockInfos) {
+      BlockInfo blockInfo = fileBlockInfo.getBlockInfo();
+      if (blockInfo.getLocations().stream()
+          .noneMatch(
+              blockLocation -> LOCAL_NAME.equals(blockLocation.getWorkerAddress().getHost()))) {
+        return false;
+      }
+    }
+    return true;
+  }
 
 }

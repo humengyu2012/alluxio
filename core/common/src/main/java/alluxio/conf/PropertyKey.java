@@ -5479,6 +5479,13 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setDefaultValue(128 * 1024 * 1024)
           .setScope(Scope.SERVER)
           .build();
+  public static final PropertyKey PROXY_S3_REOPEN_READ_CHECK_LOCAL =
+      booleanBuilder(Name.PROXY_S3_REOPEN_READ_CHECK_LOCAL)
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
+          .setDescription("Whether check local cache.")
+          .setDefaultValue(false)
+          .setScope(Scope.SERVER)
+          .build();
 
   //
   // Locality related properties
@@ -8647,6 +8654,8 @@ public final class PropertyKey implements Comparable<PropertyKey> {
         "alluxio.proxy.s3.reopen.read.enable";
     public static final String PROXY_S3_REOPEN_READ_RANGE_SIZE =
         "alluxio.proxy.s3.reopen.read.range.size";
+    public static final String PROXY_S3_REOPEN_READ_CHECK_LOCAL =
+        "alluxio.proxy.s3.reopen.read.check.local";
 
     //
     // Locality related properties
