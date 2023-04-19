@@ -18,6 +18,7 @@ import alluxio.client.file.FileInStream;
 import alluxio.client.file.FileOutStream;
 import alluxio.client.file.FileSystem;
 import alluxio.client.file.URIStatus;
+import alluxio.conf.AlluxioConfiguration;
 import alluxio.conf.Configuration;
 import alluxio.conf.PropertyKey;
 import alluxio.exception.AlluxioException;
@@ -315,18 +316,34 @@ public class S3ObjectTask extends S3BaseTask {
               blockLoader.load(status);
             }
 
+            /**
+             * Reopen read 会每读一小段文件重新拉取 alluxio 的块分布，是为了感知在读取过程中新缓存的文件块，
+             * 这可以加快冷读速度，同时节省 UFS 的流量。如果发现文件块已经缓存到集群了，就使用原始的方式读文件。
+             * 另外如果开启了 local 检查，只要没有在本地缓存的块，哪怕是在其他 worker 已经缓存了，
+             * 也会使用 reopen read，是为了减少 worker 之间的流量，
+             * 这个时候 reopen read 的 range size 推荐为 block 的 1/2。
+             */
             S3RangeSpec s3Range = S3RangeSpec.Factory.create(range);
-            InputStream ris;
-            if (mHandler.getMetaFS().getConf().getBoolean(PropertyKey.PROXY_S3_REOPEN_READ_ENABLE)
+            InputStream ris = null;
+            AlluxioConfiguration conf = mHandler.getMetaFS().getConf();
+            if (conf.getBoolean(PropertyKey.PROXY_S3_REOPEN_READ_ENABLE)
                 && s3Range.getLength(status.getLength()) == status.getLength()
-                && status.getLength() > MergedInputStream.RANGE_SIZE
-                && status.getInAlluxioPercentage() != 100) {
-              LOG.info("Use merged inputStream for {}", objectUri);
-              ris = MergedInputStream.create(userFs, status);
-            } else {
+                && status.getLength() > MergedInputStream.RANGE_SIZE) {
+              if (status.getInAlluxioPercentage() != 100) {
+                LOG.info("Use merged inputStream for {}, "
+                    + "since cluster cache percentage is not 100%", objectUri);
+                ris = MergedInputStream.create(userFs, status);
+              } else if (conf.getBoolean(PropertyKey.PROXY_S3_REOPEN_READ_CHECK_LOCAL)
+                  && !BlockLoader.allBlocksInLocal(status)) {
+                LOG.info("Use merged inputStream for {}, "
+                    + "since local cache percentage is not 100%", objectUri);
+                ris = MergedInputStream.create(userFs, status);
+              }
+            }
+            if (ris == null) {
+              LOG.info("Use range inputStream for {}", objectPath);
               FileInStream is = userFs.openFile(objectUri);
-              ris = RangeFileInStream.Factory.create(
-                  is, status.getLength(), s3Range);
+              ris = RangeFileInStream.Factory.create(is, status.getLength(), s3Range);
             }
 
             InputStream inputStream;
