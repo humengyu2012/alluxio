@@ -13,6 +13,7 @@ package alluxio.proxy.s3;
 
 import alluxio.AlluxioURI;
 import alluxio.Constants;
+import alluxio.client.file.FileSystem;
 import alluxio.conf.Configuration;
 import alluxio.conf.PropertyKey;
 import alluxio.util.ThreadUtils;
@@ -64,6 +65,11 @@ public class S3RequestServlet extends HttpServlet {
   @Override
   public void service(HttpServletRequest request,
                       HttpServletResponse response) throws ServletException, IOException {
+    FileSystem fileSystem = (FileSystem) request.getServletContext()
+        .getAttribute(ProxyWebServer.FILE_SYSTEM_SERVLET_RESOURCE_KEY);
+    if (ProxyWebServer.loadMetadata(request, fileSystem)) {
+      return;
+    }
     String target = request.getRequestURI();
     if (!target.startsWith(S3_V2_SERVICE_PATH_PREFIX)) {
       return;
