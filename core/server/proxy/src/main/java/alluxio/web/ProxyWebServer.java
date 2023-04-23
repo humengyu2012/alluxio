@@ -18,6 +18,7 @@ import alluxio.client.file.FileSystem;
 import alluxio.client.file.FileSystemContext;
 import alluxio.conf.Configuration;
 import alluxio.conf.PropertyKey;
+import alluxio.exception.status.InvalidArgumentException;
 import alluxio.grpc.FileSystemMasterCommonPOptions;
 import alluxio.grpc.ListStatusPOptions;
 import alluxio.master.audit.AsyncUserAccessAuditLogWriter;
@@ -161,7 +162,7 @@ public final class ProxyWebServer extends WebServer {
       public void service(final ServletRequest req, final ServletResponse res)
           throws ServletException, IOException {
         Stopwatch stopWatch = Stopwatch.createStarted();
-        if (!loadMetadata(req)) {
+        if (!loadMetadata(req, mFileSystem)) {
           super.service(req, res);
         }
         if ((req instanceof HttpServletRequest) && (res instanceof HttpServletResponse)) {
@@ -222,7 +223,8 @@ public final class ProxyWebServer extends WebServer {
    *
    * @return if request is load metadata
    */
-  public boolean loadMetadata(ServletRequest request) throws IOException {
+  public static boolean loadMetadata(ServletRequest request, FileSystem fileSystem)
+      throws IOException {
     if (!(request instanceof HttpServletRequest)) {
       return false;
     }
@@ -240,6 +242,14 @@ public final class ProxyWebServer extends WebServer {
     boolean recursive = Optional.ofNullable(httpRequest.getParameter(RECURSIVE))
         .map(Boolean::parseBoolean).orElse(false);
     AlluxioURI alluxioURI = new AlluxioURI(String.format("/%s/%s", bucket, path));
+    int depth = alluxioURI.getDepth();
+    // 默认最小是 4，root 是 0，因此最多只能刷新到 /user/test/a/b
+    int minDepth = Configuration.getInt(PropertyKey.PROXY_S3_LOAD_METADATA_MINIMUM_DEPTH);
+    if (depth < minDepth) {
+      throw new InvalidArgumentException(
+          String.format("The depth of %s must less than or equal %s, but %s", alluxioURI, minDepth,
+              depth));
+    }
     ListStatusPOptions options;
     if (force) {
       options = ListStatusPOptions.newBuilder()
@@ -251,7 +261,7 @@ public final class ProxyWebServer extends WebServer {
       options = ListStatusPOptions.newBuilder().setRecursive(recursive).build();
     }
     try {
-      mFileSystem.loadMetadata(alluxioURI, options);
+      fileSystem.loadMetadata(alluxioURI, options);
     } catch (Exception e) {
       throw new IOException(e.getMessage(), e);
     }
