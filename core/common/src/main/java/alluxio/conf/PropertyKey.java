@@ -5493,6 +5493,14 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setDefaultValue(4)
           .setScope(Scope.SERVER)
           .build();
+  public static final PropertyKey PROXY_S3_BUCKETPATHCACHE_TIMEOUT =
+      durationBuilder(Name.PROXY_S3_BUCKETPATHCACHE_TIMEOUT)
+          .setDefaultValue("0min")
+          .setDescription("Expire bucket path statistics in cache for this time period. "
+          + "Set 0min to disable the cache. If enabling the cache, "
+          + "be careful that Alluxio S3 API will behave differently from AWS S3 API"
+          + " if bucket path cache entries become stale.")
+          .build();
 
   //
   // Locality related properties
@@ -8665,6 +8673,8 @@ public final class PropertyKey implements Comparable<PropertyKey> {
         "alluxio.proxy.s3.reopen.read.check.local";
     public static final String PROXY_S3_LOAD_METADATA_MINIMUM_DEPTH =
         "alluxio.proxy.s3.load.metadata.minimum.depth";
+    public static final String PROXY_S3_BUCKETPATHCACHE_TIMEOUT =
+        "alluxio.proxy.s3.bucketpathcache.timeout";
 
     //
     // Locality related properties
