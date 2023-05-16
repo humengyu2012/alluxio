@@ -43,6 +43,8 @@ import alluxio.util.SecurityUtils;
 
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.protobuf.ByteString;
@@ -65,6 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.security.auth.Subject;
@@ -277,21 +280,36 @@ public final class S3RestUtils {
     return toObjectS3Exception(exception, resource);
   }
 
+  public static final int BUCKET_PATH_CACHE_SIZE = 65536;
+
+  public static final Cache<String, Boolean> BUCKET_PATH_CACHE = CacheBuilder.newBuilder()
+      .maximumSize(BUCKET_PATH_CACHE_SIZE)
+      .expireAfterWrite(
+          Configuration.global().getMs(PropertyKey.PROXY_S3_BUCKETPATHCACHE_TIMEOUT),
+          TimeUnit.MILLISECONDS)
+      .build();
+
   /**
    * Check if a path in alluxio is a directory.
    *
    * @param fs instance of {@link FileSystem}
    * @param bucketPath bucket complete path
    * @param auditContext the audit context for exception
+   * @param useCache whether using cache
    */
   public static void checkPathIsAlluxioDirectory(FileSystem fs, String bucketPath,
-                                                 @Nullable S3AuditContext auditContext)
-      throws S3Exception {
+      @Nullable S3AuditContext auditContext, boolean useCache) throws S3Exception {
     try {
+      if (useCache && Boolean.TRUE.equals(BUCKET_PATH_CACHE.getIfPresent(bucketPath))) {
+        return;
+      }
       URIStatus status = fs.getStatus(new AlluxioURI(bucketPath));
       if (!status.isFolder()) {
         throw new InvalidPathException("Bucket " + bucketPath
             + " is not a valid Alluxio directory.");
+      }
+      if (useCache) {
+        BUCKET_PATH_CACHE.put(bucketPath, true);
       }
     } catch (Exception e) {
       if (auditContext != null) {
@@ -299,6 +317,11 @@ public final class S3RestUtils {
       }
       throw toBucketS3Exception(e, bucketPath);
     }
+  }
+
+  public static void checkPathIsAlluxioDirectory(FileSystem fs, String bucketPath,
+      @Nullable S3AuditContext auditContext) throws S3Exception {
+   checkPathIsAlluxioDirectory(fs, bucketPath, auditContext, true);
   }
 
   /**
@@ -403,7 +426,7 @@ public final class S3RestUtils {
 
     final Subject subject = new Subject();
     subject.getPrincipals().add(new User(user));
-    return FileSystem.Factory.get(subject, fs.getConf());
+    return FileSystem.Factory.get(subject, Configuration.global());
   }
 
   /**

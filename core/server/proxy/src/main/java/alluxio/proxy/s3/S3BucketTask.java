@@ -323,13 +323,24 @@ public class S3BucketTask extends S3BaseTask {
                 } catch (Exception e) {
                   // 这里是为了强制加载新增目录的元数据，防止开了元数据缓存以后，list 不到
                 }
-                children = S3RestUtils.listStatusByPrefix(uri -> {
-                  try {
-                    return userFs.listStatus(uri);
-                  } catch (Exception e) {
-                    throw new RuntimeException(e);
+                try {
+                  children = S3RestUtils.listStatusByPrefix(uri -> {
+                    try {
+                      return userFs.listStatus(uri);
+                    } catch (Exception e) {
+                      throw new RuntimeException(e);
+                    }
+                  }, path, maxKeys + 1);
+                } catch (RuntimeException e) {
+                  Throwable cause = e.getCause();
+                  if (cause instanceof AlluxioException) {
+                    throw (AlluxioException) cause;
                   }
-                }, path, maxKeys + 1);
+                  if (cause instanceof IOException) {
+                    throw (IOException) cause;
+                  }
+                  throw e;
+                }
               } else {
                 ListStatusPOptions options = ListStatusPOptions.newBuilder().setRecursive(true)
                     .build();
