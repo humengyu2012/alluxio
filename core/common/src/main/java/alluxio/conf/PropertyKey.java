@@ -7046,6 +7046,24 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setDescription("The port Alluxio FUSE web UI runs on.")
           .setScope(Scope.CLIENT)
           .build();
+  public static final PropertyKey FUSE_AUTO_CACHE_ENABLE =
+      booleanBuilder(Name.FUSE_AUTO_CACHE_ENABLE)
+          .setDefaultValue(false)
+          .setDescription("Whether auto cache blocks to local")
+          .setScope(Scope.CLIENT)
+          .build();
+  public static final PropertyKey FUSE_BLOCK_LOADER_DEDUPLICATE_MS =
+      longBuilder(Name.FUSE_BLOCK_LOADER_DEDUPLICATE_MS)
+          .setDefaultValue(5 * 60 * 1000L)
+          .setDescription("Deduplicate block id time.")
+          .setScope(Scope.CLIENT)
+          .build();
+  public static final PropertyKey FUSE_BLOCK_LOADER_FORWARD_BLOCK_COUNT =
+      intBuilder(Name.FUSE_BLOCK_LOADER_FORWARD_BLOCK_COUNT)
+          .setDefaultValue(10)
+          .setDescription("The number of pre loading blocks to local worker. ")
+          .setScope(Scope.CLIENT)
+          .build();
 
   //
   // Security related properties
@@ -9015,6 +9033,9 @@ public final class PropertyKey implements Comparable<PropertyKey> {
     public static final String FUSE_WEB_PORT = "alluxio.fuse.web.port";
     public static final String FUSE_JNIFUSE_LIBFUSE_VERSION =
         "alluxio.fuse.jnifuse.libfuse.version";
+    public static final String FUSE_AUTO_CACHE_ENABLE = "alluxio.fuse.auto.cache.enable";
+    public static final String FUSE_BLOCK_LOADER_DEDUPLICATE_MS = "alluxio.fuse.block.loader.deduplicate.ms";
+    public static final String FUSE_BLOCK_LOADER_FORWARD_BLOCK_COUNT = "alluxio.fuse.block.loader.forward.block.count";
 
     //
     // Security related properties

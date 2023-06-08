@@ -16,6 +16,8 @@ import alluxio.client.file.FileInStream;
 import alluxio.client.file.FileSystem;
 import alluxio.client.file.URIStatus;
 import alluxio.concurrent.LockMode;
+import alluxio.conf.Configuration;
+import alluxio.conf.PropertyKey;
 import alluxio.exception.AlluxioException;
 import alluxio.exception.PreconditionMessage;
 import alluxio.exception.runtime.AlluxioRuntimeException;
@@ -23,6 +25,8 @@ import alluxio.exception.runtime.FailedPreconditionRuntimeException;
 import alluxio.exception.runtime.NotFoundRuntimeException;
 import alluxio.exception.runtime.UnimplementedRuntimeException;
 import alluxio.fuse.AlluxioFuseUtils;
+import alluxio.fuse.FileInStreamWrap;
+import alluxio.fuse.FuseBlockLoader;
 import alluxio.fuse.lock.FuseReadWriteLockManager;
 import alluxio.resource.CloseableResource;
 
@@ -78,7 +82,7 @@ public class FuseFileInStream implements FuseFileStream {
       }
 
       try {
-        FileInStream is = fileSystem.openFile(uri);
+        FileInStream is = FuseBlockLoader.create(fileSystem, uri);
         return new FuseFileInStream(is, lockResource,
             new FileStatus(status.get().getLength()), uri);
       } catch (IOException | AlluxioException e) {

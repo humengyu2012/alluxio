@@ -668,6 +668,15 @@ public class FileSystemContext implements Closeable {
     return mLocalWorker;
   }
 
+  public WorkerNetAddress getNodeLocalWorkerV2() throws IOException {
+    if (mLocalWorker == null) {
+      synchronized (this) {
+        initializeLocalWorker();
+      }
+    }
+    return mLocalWorker;
+  }
+
   /**
    * Gets the cached worker information list.
    * This method is relatively cheap as the result is cached, but may not
