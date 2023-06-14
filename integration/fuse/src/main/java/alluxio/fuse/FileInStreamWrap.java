@@ -82,7 +82,8 @@ public class FileInStreamWrap extends FileInStream {
     Long pos = null;
     if (fileInStream == null) {
       // 第一次读取时，需要检查集群的缓存情况
-      if (status.getLength() > WAITING_CLUSTER_CACHE_MIN_FILE_SIZE) {
+      if (status.getInAlluxioPercentage() < 100
+          && status.getLength() > WAITING_CLUSTER_CACHE_MIN_FILE_SIZE) {
         FuseBlockLoader.waitingForClusterCache(fileSystem, uri, WAITING_CLUSTER_CACHE_PERCENT,
             WAITING_CLUSTER_CACHE_MAX_TIME_MS);
       }
