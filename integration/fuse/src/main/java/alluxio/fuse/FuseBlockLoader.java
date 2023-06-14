@@ -76,6 +76,9 @@ public class FuseBlockLoader {
     if (!autoCacheEnable) {
       return;
     }
+    if (!local && status.getInAlluxioPercentage() == 100) {
+      return;
+    }
     try {
       AlluxioURI filePath = new AlluxioURI(status.getPath());
       List<Runnable> loadBlockTasks = getLoadBlockTasks(filePath, status, local, async, startOffset,
@@ -233,6 +236,7 @@ public class FuseBlockLoader {
   public static FileInStream create(FileSystem fileSystem, AlluxioURI uri)
       throws IOException, AlluxioException {
     if (INSTANCE.isAutoCacheEnable()) {
+      LOG.info("Load {} to cluster", uri);
       INSTANCE.load(fileSystem.getStatus(uri), false, true, 0, Integer.MAX_VALUE);
       return new FileInStreamWrap(fileSystem, uri);
     }
@@ -243,6 +247,36 @@ public class FuseBlockLoader {
 
   public static FuseBlockLoader getInstance() {
     return INSTANCE;
+  }
+
+  public static void waitingForClusterCache(FileSystem fileSystem, AlluxioURI uri,
+      int targetPercent, long maxWaitingTimeMs)
+      throws IOException, AlluxioException {
+    if (targetPercent <= 0) {
+      return;
+    }
+    if (maxWaitingTimeMs <= 0) {
+      return;
+    }
+    LOG.info("Waiting cluster cache for {}, targetPercent = {}, maxWaitingTimeMs = {}",
+        uri, targetPercent, maxWaitingTimeMs);
+    long start = System.currentTimeMillis();
+    int percent;
+    while ((percent = fileSystem.getStatus(uri).getInAlluxioPercentage()) < targetPercent) {
+      if (System.currentTimeMillis() - start >= maxWaitingTimeMs) {
+        LOG.info(
+            "Give up waiting for {}, as the maximum wait time has been reached. Current percent is {}%",
+            uri, percent);
+        break;
+      }
+      try {
+        Thread.sleep(100L);
+      } catch (InterruptedException e) {
+        throw new AlluxioException("Thread interrupted");
+      }
+    }
+    LOG.info("Cluster cache is {}% for {}, waiting time is {}", percent, uri,
+        System.currentTimeMillis() - start);
   }
 
 }
