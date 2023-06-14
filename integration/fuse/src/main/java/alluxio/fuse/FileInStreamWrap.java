@@ -12,9 +12,16 @@ import java.nio.ByteBuffer;
 
 public class FileInStreamWrap extends FileInStream {
 
-  private static final long CHECK_PERIOD = 1000L;
+  private static final long CHECK_PERIOD = Math.max(
+      Configuration.getLong(PropertyKey.FUSE_BLOCK_LOADER_FORWARD_BLOCK_PERIOD_MS), 1000L);
   private static final int FORWARD_BLOCK_COUNT = Math.max(Configuration.getInt(
       PropertyKey.FUSE_BLOCK_LOADER_FORWARD_BLOCK_COUNT), 1);
+  private static final int WAITING_CLUSTER_CACHE_PERCENT = Configuration.getInt(
+      PropertyKey.FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_PERCENT);
+  private static final long WAITING_CLUSTER_CACHE_MAX_TIME_MS = Configuration.getLong(
+      PropertyKey.FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_MAX_TIME_MS);
+  private static final long WAITING_CLUSTER_CACHE_MIN_FILE_SIZE = Configuration.getLong(
+      PropertyKey.FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_MIN_FILE_SIZE_BYTES);
 
   private final FileSystem fileSystem;
   private final AlluxioURI uri;
@@ -71,8 +78,15 @@ public class FileInStreamWrap extends FileInStream {
   }
 
   private synchronized void replaceFileInStream() throws IOException, AlluxioException {
+    URIStatus status = fileSystem.getStatus(uri);
     Long pos = null;
-    if (fileInStream != null) {
+    if (fileInStream == null) {
+      // 第一次读取时，需要检查集群的缓存情况
+      if (status.getLength() > WAITING_CLUSTER_CACHE_MIN_FILE_SIZE) {
+        FuseBlockLoader.waitingForClusterCache(fileSystem, uri, WAITING_CLUSTER_CACHE_PERCENT,
+            WAITING_CLUSTER_CACHE_MAX_TIME_MS);
+      }
+    } else {
       pos = fileInStream.getPos();
       fileInStream.close();
     }
@@ -81,7 +95,7 @@ public class FileInStreamWrap extends FileInStream {
       fileInStream.seek(pos);
     }
     // cache blocks
-    blockLoader.load(fileSystem.getStatus(uri), true, true, fileInStream.getPos(),
+    blockLoader.load(status, true, true, fileInStream.getPos(),
         FORWARD_BLOCK_COUNT);
   }
 

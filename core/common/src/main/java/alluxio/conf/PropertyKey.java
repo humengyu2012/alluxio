@@ -7064,6 +7064,27 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setDescription("The number of pre loading blocks to local worker. ")
           .setScope(Scope.CLIENT)
           .build();
+  public static final PropertyKey FUSE_BLOCK_LOADER_FORWARD_BLOCK_PERIOD_MS =
+      longBuilder(Name.FUSE_BLOCK_LOADER_FORWARD_BLOCK_PERIOD_MS)
+          .setDefaultValue(1000)
+          .setDescription("The check period of pre loading blocks to local worker. ")
+          .setScope(Scope.CLIENT)
+          .build();
+  public static final PropertyKey FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_PERCENT =
+      intBuilder(Name.FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_PERCENT)
+          .setDefaultValue(90)
+          .setScope(Scope.CLIENT)
+          .build();
+  public static final PropertyKey FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_MAX_TIME_MS =
+      longBuilder(Name.FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_MAX_TIME_MS)
+          .setDefaultValue(3000L)
+          .setScope(Scope.CLIENT)
+          .build();
+  public static final PropertyKey FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_MIN_FILE_SIZE_BYTES =
+      longBuilder(Name.FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_MIN_FILE_SIZE_BYTES)
+          .setDefaultValue(5 * 1024 * 1024 * 1024L)
+          .setScope(Scope.CLIENT)
+          .build();
 
   //
   // Security related properties
@@ -9034,8 +9055,18 @@ public final class PropertyKey implements Comparable<PropertyKey> {
     public static final String FUSE_JNIFUSE_LIBFUSE_VERSION =
         "alluxio.fuse.jnifuse.libfuse.version";
     public static final String FUSE_AUTO_CACHE_ENABLE = "alluxio.fuse.auto.cache.enable";
-    public static final String FUSE_BLOCK_LOADER_DEDUPLICATE_MS = "alluxio.fuse.block.loader.deduplicate.ms";
-    public static final String FUSE_BLOCK_LOADER_FORWARD_BLOCK_COUNT = "alluxio.fuse.block.loader.forward.block.count";
+    public static final String FUSE_BLOCK_LOADER_DEDUPLICATE_MS =
+        "alluxio.fuse.block.loader.deduplicate.ms";
+    public static final String FUSE_BLOCK_LOADER_FORWARD_BLOCK_COUNT =
+        "alluxio.fuse.block.loader.forward.block.count";
+    public static final String FUSE_BLOCK_LOADER_FORWARD_BLOCK_PERIOD_MS =
+        "alluxio.fuse.block.loader.forward.block.period.ms";
+    public static final String FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_PERCENT =
+        "alluxio.fuse.block.loader.waiting.cluster.cache.percent";
+    public static final String FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_MAX_TIME_MS =
+        "alluxio.fuse.block.loader.waiting.cluster.cache.max.time.ms";
+    public static final String FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_MIN_FILE_SIZE_BYTES =
+        "alluxio.fuse.block.loader.waiting.cluster.cache.min.file.size.bytes";
 
     //
     // Security related properties
