@@ -78,10 +78,10 @@ public class FileInStreamWrap extends FileInStream {
   }
 
   private synchronized void replaceFileInStream() throws IOException, AlluxioException {
-    URIStatus status = fileSystem.getStatus(uri);
     Long pos = null;
     if (fileInStream == null) {
       // 第一次读取时，需要检查集群的缓存情况
+      URIStatus status = fileSystem.getStatus(uri);
       if (status.getInAlluxioPercentage() < 100
           && status.getLength() > WAITING_CLUSTER_CACHE_MIN_FILE_SIZE) {
         FuseBlockLoader.waitingForClusterCache(fileSystem, uri, WAITING_CLUSTER_CACHE_PERCENT,
@@ -95,8 +95,8 @@ public class FileInStreamWrap extends FileInStream {
     if (pos != null) {
       fileInStream.seek(pos);
     }
-    // cache blocks
-    blockLoader.load(status, true, true, fileInStream.getPos(),
+    // cache block: get the latest status
+    blockLoader.load(fileSystem.getStatus(uri), true, true, fileInStream.getPos(),
         FORWARD_BLOCK_COUNT);
   }
 
