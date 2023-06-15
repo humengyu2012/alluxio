@@ -9,34 +9,27 @@ import alluxio.conf.PropertyKey;
 import alluxio.exception.AlluxioException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class FileInStreamWrap extends FileInStream {
+public class BlockAwareFileInStream extends FileInStream {
 
-  private static final long CHECK_PERIOD = Math.max(
-      Configuration.getLong(PropertyKey.FUSE_BLOCK_LOADER_FORWARD_BLOCK_PERIOD_MS), 1000L);
-  private static final int FORWARD_BLOCK_COUNT = Math.max(Configuration.getInt(
-      PropertyKey.FUSE_BLOCK_LOADER_FORWARD_BLOCK_COUNT), 1);
-  private static final int WAITING_CLUSTER_CACHE_PERCENT = Configuration.getInt(
-      PropertyKey.FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_PERCENT);
-  private static final long WAITING_CLUSTER_CACHE_MAX_TIME_MS = Configuration.getLong(
-      PropertyKey.FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_MAX_TIME_MS);
-  private static final long WAITING_CLUSTER_CACHE_MIN_FILE_SIZE = Configuration.getLong(
-      PropertyKey.FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_MIN_FILE_SIZE_BYTES);
+  private static final Logger LOG = LoggerFactory.getLogger(BlockAwareFileInStream.class);
+
+  private static final long AWARE_PERIOD = Math.max(
+      Configuration.getLong(PropertyKey.FUSE_MEMORY_CACHE_AWARE_BLOCK_PERIOD_MS), 1000L);
 
   private final FileSystem fileSystem;
   private final AlluxioURI uri;
-  private final FuseBlockLoader blockLoader;
-  private boolean allInLocal;
+  private boolean allBlocksInCluster;
   private FileInStream fileInStream;
   private long lastUpdateTs;
 
-  public FileInStreamWrap(FileSystem fileSystem, AlluxioURI uri)
-      throws IOException, AlluxioException {
+  public BlockAwareFileInStream(FileSystem fileSystem, AlluxioURI uri)
+      throws IOException {
     this.fileSystem = fileSystem;
     this.uri = uri;
-    this.blockLoader = FuseBlockLoader.getInstance();
-    this.lastUpdateTs = System.currentTimeMillis();
-    replaceFileInStream();
+    checkReplaceFileInStream();
   }
 
   @Override
@@ -63,12 +56,13 @@ public class FileInStreamWrap extends FileInStream {
 
   private void checkReplaceFileInStream() throws IOException {
     try {
-      if (allInLocal || System.currentTimeMillis() - lastUpdateTs < CHECK_PERIOD) {
+      if (allBlocksInCluster || System.currentTimeMillis() - lastUpdateTs < AWARE_PERIOD) {
         return;
       }
       URIStatus status = fileSystem.getStatus(uri);
-      if (FuseBlockLoader.allBlocksInLocal(status.getFileBlockInfos())) {
-        allInLocal = true;
+      if (status.getInAlluxioPercentage() == 100) {
+        allBlocksInCluster = true;
+        LOG.info("The blocks of {} are all in cluster", uri);
       }
       replaceFileInStream();
       lastUpdateTs = System.currentTimeMillis();
@@ -79,15 +73,7 @@ public class FileInStreamWrap extends FileInStream {
 
   private synchronized void replaceFileInStream() throws IOException, AlluxioException {
     Long pos = null;
-    if (fileInStream == null) {
-      // 第一次读取时，需要检查集群的缓存情况
-      URIStatus status = fileSystem.getStatus(uri);
-      if (status.getInAlluxioPercentage() < 100
-          && status.getLength() > WAITING_CLUSTER_CACHE_MIN_FILE_SIZE) {
-        FuseBlockLoader.waitingForClusterCache(fileSystem, uri, WAITING_CLUSTER_CACHE_PERCENT,
-            WAITING_CLUSTER_CACHE_MAX_TIME_MS);
-      }
-    } else {
+    if (fileInStream != null) {
       pos = fileInStream.getPos();
       fileInStream.close();
     }
@@ -95,9 +81,6 @@ public class FileInStreamWrap extends FileInStream {
     if (pos != null) {
       fileInStream.seek(pos);
     }
-    // cache block: get the latest status
-    blockLoader.load(fileSystem.getStatus(uri), true, true, fileInStream.getPos(),
-        FORWARD_BLOCK_COUNT);
   }
 
   @Override
@@ -164,5 +147,5 @@ public class FileInStreamWrap extends FileInStream {
   public boolean markSupported() {
     return fileInStream.markSupported();
   }
-}
 
+}

@@ -47,7 +47,7 @@ public class FuseBlockLoader {
   // 去重集合
   private final Cache<Long, Boolean> clusterCache;
   private final Cache<Long, Boolean> localCache;
-  private final boolean autoCacheEnable;
+  private final boolean autoLoadEnable;
 
   private FuseBlockLoader(FileSystemContext fsContext) {
     this.fsContext = fsContext;
@@ -63,17 +63,17 @@ public class FuseBlockLoader {
         .maximumSize(128 * 1024)
         .initialCapacity(8 * 1024)
         .build();
-    this.autoCacheEnable = Configuration.getBoolean(PropertyKey.FUSE_AUTO_CACHE_ENABLE);
-    LOG.info("{} is set to {}", PropertyKey.FUSE_AUTO_CACHE_ENABLE.getName(), autoCacheEnable);
+    this.autoLoadEnable = Configuration.getBoolean(PropertyKey.FUSE_AUTO_LOAD_ENABLE);
+    LOG.info("{} is set to {}", PropertyKey.FUSE_AUTO_LOAD_ENABLE.getName(), autoLoadEnable);
   }
 
-  public boolean isAutoCacheEnable() {
-    return autoCacheEnable;
+  public boolean isAutoLoadEnable() {
+    return autoLoadEnable;
   }
 
   public void load(URIStatus status, boolean local, boolean async, long startOffset,
       int cacheBlockCount) {
-    if (!autoCacheEnable) {
+    if (!autoLoadEnable) {
       return;
     }
     if (!local && status.getInAlluxioPercentage() == 100) {
@@ -235,10 +235,12 @@ public class FuseBlockLoader {
 
   public static FileInStream create(FileSystem fileSystem, AlluxioURI uri)
       throws IOException, AlluxioException {
-    if (INSTANCE.isAutoCacheEnable()) {
+    if (INSTANCE.isAutoLoadEnable()) {
       LOG.info("Load {} to cluster", uri);
       INSTANCE.load(fileSystem.getStatus(uri), false, true, 0, Integer.MAX_VALUE);
-      return new FileInStreamWrap(fileSystem, uri);
+    }
+    if (Configuration.getBoolean(PropertyKey.FUSE_MEMORY_CACHE_ENABLE)) {
+      return new MemoryCacheFileInStream(fileSystem, uri);
     }
     return fileSystem.openFile(uri);
   }
@@ -247,36 +249,6 @@ public class FuseBlockLoader {
 
   public static FuseBlockLoader getInstance() {
     return INSTANCE;
-  }
-
-  public static void waitingForClusterCache(FileSystem fileSystem, AlluxioURI uri,
-      int targetPercent, long maxWaitingTimeMs)
-      throws IOException, AlluxioException {
-    if (targetPercent <= 0) {
-      return;
-    }
-    if (maxWaitingTimeMs <= 0) {
-      return;
-    }
-    LOG.info("Waiting cluster cache for {}, targetPercent = {}, maxWaitingTimeMs = {}",
-        uri, targetPercent, maxWaitingTimeMs);
-    long start = System.currentTimeMillis();
-    int percent;
-    while ((percent = fileSystem.getStatus(uri).getInAlluxioPercentage()) < targetPercent) {
-      if (System.currentTimeMillis() - start >= maxWaitingTimeMs) {
-        LOG.info(
-            "Give up waiting for {}, as the maximum wait time has been reached. Current percent is {}%",
-            uri, percent);
-        break;
-      }
-      try {
-        Thread.sleep(100L);
-      } catch (InterruptedException e) {
-        throw new AlluxioException("Thread interrupted");
-      }
-    }
-    LOG.info("Cluster cache is {}% for {}, waiting time is {}", percent, uri,
-        System.currentTimeMillis() - start);
   }
 
 }
