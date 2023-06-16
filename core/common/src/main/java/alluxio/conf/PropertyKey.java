@@ -7046,10 +7046,10 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setDescription("The port Alluxio FUSE web UI runs on.")
           .setScope(Scope.CLIENT)
           .build();
-  public static final PropertyKey FUSE_AUTO_CACHE_ENABLE =
-      booleanBuilder(Name.FUSE_AUTO_CACHE_ENABLE)
+  public static final PropertyKey FUSE_AUTO_LOAD_ENABLE =
+      booleanBuilder(Name.FUSE_AUTO_LOAD_ENABLE)
           .setDefaultValue(false)
-          .setDescription("Whether auto cache blocks to local")
+          .setDescription("Whether auto load blocks to cluster")
           .setScope(Scope.CLIENT)
           .build();
   public static final PropertyKey FUSE_BLOCK_LOADER_DEDUPLICATE_MS =
@@ -7058,31 +7058,39 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setDescription("Deduplicate block id time.")
           .setScope(Scope.CLIENT)
           .build();
-  public static final PropertyKey FUSE_BLOCK_LOADER_FORWARD_BLOCK_COUNT =
-      intBuilder(Name.FUSE_BLOCK_LOADER_FORWARD_BLOCK_COUNT)
-          .setDefaultValue(10)
-          .setDescription("The number of pre loading blocks to local worker. ")
+  public static final PropertyKey FUSE_MEMORY_CACHE_ENABLE =
+      booleanBuilder(Name.FUSE_MEMORY_CACHE_ENABLE)
+          .setDefaultValue(false)
           .setScope(Scope.CLIENT)
           .build();
-  public static final PropertyKey FUSE_BLOCK_LOADER_FORWARD_BLOCK_PERIOD_MS =
-      longBuilder(Name.FUSE_BLOCK_LOADER_FORWARD_BLOCK_PERIOD_MS)
-          .setDefaultValue(1000)
-          .setDescription("The check period of pre loading blocks to local worker. ")
+  public static final PropertyKey FUSE_MEMORY_CACHE_PAGE_SIZE =
+      dataSizeBuilder(Name.FUSE_MEMORY_CACHE_PAGE_SIZE)
+          .setDefaultValue("4MB")
           .setScope(Scope.CLIENT)
           .build();
-  public static final PropertyKey FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_PERCENT =
-      intBuilder(Name.FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_PERCENT)
-          .setDefaultValue(90)
+  public static final PropertyKey FUSE_MEMORY_CACHE_PAGE_COUNT =
+      intBuilder(Name.FUSE_MEMORY_CACHE_PAGE_COUNT)
+          .setDefaultValue(256)
           .setScope(Scope.CLIENT)
           .build();
-  public static final PropertyKey FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_MAX_TIME_MS =
-      longBuilder(Name.FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_MAX_TIME_MS)
-          .setDefaultValue(3000L)
+  public static final PropertyKey FUSE_MEMORY_CACHE_CONCURRENCY_LEVEL =
+      intBuilder(Name.FUSE_MEMORY_CACHE_CONCURRENCY_LEVEL)
+          .setDefaultValue(128)
           .setScope(Scope.CLIENT)
           .build();
-  public static final PropertyKey FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_MIN_FILE_SIZE_BYTES =
-      longBuilder(Name.FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_MIN_FILE_SIZE_BYTES)
-          .setDefaultValue(5 * 1024 * 1024 * 1024L)
+  public static final PropertyKey FUSE_MEMORY_CACHE_EXPIRE_MS =
+      longBuilder(Name.FUSE_MEMORY_CACHE_EXPIRE_MS)
+          .setDefaultValue(60 * 60 * 1000L)
+          .setScope(Scope.CLIENT)
+          .build();
+  public static final PropertyKey FUSE_MEMORY_CACHE_AWARE_BLOCK =
+      booleanBuilder(Name.FUSE_MEMORY_CACHE_AWARE_BLOCK)
+          .setDefaultValue(false)
+          .setScope(Scope.CLIENT)
+          .build();
+  public static final PropertyKey FUSE_MEMORY_CACHE_AWARE_BLOCK_PERIOD_MS =
+      longBuilder(Name.FUSE_MEMORY_CACHE_AWARE_BLOCK_PERIOD_MS)
+          .setDefaultValue(1000L)
           .setScope(Scope.CLIENT)
           .build();
 
@@ -9054,19 +9062,20 @@ public final class PropertyKey implements Comparable<PropertyKey> {
     public static final String FUSE_WEB_PORT = "alluxio.fuse.web.port";
     public static final String FUSE_JNIFUSE_LIBFUSE_VERSION =
         "alluxio.fuse.jnifuse.libfuse.version";
-    public static final String FUSE_AUTO_CACHE_ENABLE = "alluxio.fuse.auto.cache.enable";
+    public static final String FUSE_AUTO_LOAD_ENABLE = "alluxio.fuse.auto.load.enable";
     public static final String FUSE_BLOCK_LOADER_DEDUPLICATE_MS =
         "alluxio.fuse.block.loader.deduplicate.ms";
-    public static final String FUSE_BLOCK_LOADER_FORWARD_BLOCK_COUNT =
-        "alluxio.fuse.block.loader.forward.block.count";
-    public static final String FUSE_BLOCK_LOADER_FORWARD_BLOCK_PERIOD_MS =
-        "alluxio.fuse.block.loader.forward.block.period.ms";
-    public static final String FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_PERCENT =
-        "alluxio.fuse.block.loader.waiting.cluster.cache.percent";
-    public static final String FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_MAX_TIME_MS =
-        "alluxio.fuse.block.loader.waiting.cluster.cache.max.time.ms";
-    public static final String FUSE_BLOCK_LOADER_WAITING_CLUSTER_CACHE_MIN_FILE_SIZE_BYTES =
-        "alluxio.fuse.block.loader.waiting.cluster.cache.min.file.size.bytes";
+    public static final String FUSE_MEMORY_CACHE_ENABLE = "alluxio.fuse.memory.cache.enable";
+    public static final String FUSE_MEMORY_CACHE_PAGE_SIZE = "alluxio.fuse.memory.cache.page.size";
+    public static final String FUSE_MEMORY_CACHE_PAGE_COUNT = "alluxio.fuse.memory.cache.page.count";
+    public static final String FUSE_MEMORY_CACHE_CONCURRENCY_LEVEL =
+        "alluxio.fuse.memory.cache.concurrency.level";
+    public static final String FUSE_MEMORY_CACHE_EXPIRE_MS =
+        "alluxio.fuse.memory.cache.expire.ms";
+    public static final String FUSE_MEMORY_CACHE_AWARE_BLOCK =
+        "alluxio.fuse.memory.cache.aware.block";
+    public static final String FUSE_MEMORY_CACHE_AWARE_BLOCK_PERIOD_MS =
+        "alluxio.fuse.memory.cache.aware.block.period.ms";
 
     //
     // Security related properties
