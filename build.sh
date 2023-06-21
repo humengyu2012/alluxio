@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+npm config set registry https://repo.huaweicloud.com/repository/npm/
+
 mvn -T 2C clean install -DskipTests -Dmaven.javadoc.skip -Dfindbugs.skip -Dcheckstyle.skip -Dlicense.skip
 
 mkdir alluxio-2.9.2

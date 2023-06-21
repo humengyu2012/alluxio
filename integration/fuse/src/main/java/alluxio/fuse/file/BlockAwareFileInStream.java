@@ -1,4 +1,4 @@
-package alluxio.fuse;
+package alluxio.fuse.file;
 
 import alluxio.AlluxioURI;
 import alluxio.client.file.FileInStream;
