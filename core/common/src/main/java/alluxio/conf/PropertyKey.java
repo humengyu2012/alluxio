@@ -1173,6 +1173,12 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
           .setScope(Scope.SERVER)
           .build();
+  public static final PropertyKey UNDERFS_HDFS_TRASH_ENABLE =
+      booleanBuilder(Name.UNDERFS_HDFS_TRASH_ENABLE)
+          .setDefaultValue(false)
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
+          .setScope(Scope.ALL)
+          .build();
   public static final PropertyKey UNDERFS_IO_THREADS =
       intBuilder(Name.UNDERFS_IO_THREADS)
           .setDefaultSupplier(() -> Math.max(4, 3 * Runtime.getRuntime().availableProcessors()),
@@ -6888,6 +6894,24 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setConsistencyCheckLevel(ConsistencyCheckLevel.IGNORE)
           .setScope(Scope.CLIENT)
           .build();
+  public static final PropertyKey FUSE_AUTH_POLICY_SYSTEM_CACHE_USER_GROUP_SIZE =
+      intBuilder(Name.FUSE_AUTH_POLICY_SYSTEM_CACHE_USER_GROUP_SIZE)
+          .setDefaultValue(1000)
+          .setDescription("The max size of user and group cache for system auth policy. "
+              + "Only valid if the " + Name.FUSE_AUTH_POLICY_CLASS
+              + " is alluxio.fuse.auth.SystemUserGroupAuthPolicy")
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.IGNORE)
+          .setScope(Scope.CLIENT)
+          .build();
+  public static final PropertyKey FUSE_AUTH_POLICY_SYSTEM_CACHE_USER_GROUP_EXPIRE_TIME =
+      durationBuilder(Name.FUSE_AUTH_POLICY_SYSTEM_CACHE_USER_GROUP_EXPIRE_TIME)
+          .setDefaultValue("30min")
+          .setDescription("The expired time of user and group cache for system auth policy. "
+              + "Only valid if the " + Name.FUSE_AUTH_POLICY_CLASS
+              + " is alluxio.fuse.auth.SystemUserGroupAuthPolicy")
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.IGNORE)
+          .setScope(Scope.CLIENT)
+          .build();
   public static final PropertyKey FUSE_CACHED_PATHS_MAX =
       intBuilder(Name.FUSE_CACHED_PATHS_MAX)
           .setDefaultValue(500)
@@ -7052,6 +7076,11 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setDescription("Whether auto load blocks to cluster")
           .setScope(Scope.CLIENT)
           .build();
+  public static final PropertyKey FUSE_AUTO_LOAD_MIN_FILE_SIZE =
+      dataSizeBuilder(Name.FUSE_AUTO_LOAD_MIN_FILE_SIZE)
+          .setDefaultValue("16MB")
+          .setScope(Scope.CLIENT)
+          .build();
   public static final PropertyKey FUSE_BLOCK_LOADER_DEDUPLICATE_MS =
       longBuilder(Name.FUSE_BLOCK_LOADER_DEDUPLICATE_MS)
           .setDefaultValue(5 * 60 * 1000L)
@@ -7091,6 +7120,11 @@ public final class PropertyKey implements Comparable<PropertyKey> {
   public static final PropertyKey FUSE_MEMORY_CACHE_AWARE_BLOCK_PERIOD_MS =
       longBuilder(Name.FUSE_MEMORY_CACHE_AWARE_BLOCK_PERIOD_MS)
           .setDefaultValue(1000L)
+          .setScope(Scope.CLIENT)
+          .build();
+  public static final PropertyKey FUSE_MEMORY_CACHE_AWARE_BLOCK_MIN_FILE_SIZE =
+      dataSizeBuilder(Name.FUSE_MEMORY_CACHE_AWARE_BLOCK_MIN_FILE_SIZE)
+          .setDefaultValue("16MB")
           .setScope(Scope.CLIENT)
           .build();
 
@@ -7793,6 +7827,7 @@ public final class PropertyKey implements Comparable<PropertyKey> {
     public static final String UNDERFS_HDFS_PREFIXES = "alluxio.underfs.hdfs.prefixes";
     public static final String UNDERFS_OZONE_PREFIXES = "alluxio.underfs.ozone.prefixes";
     public static final String UNDERFS_HDFS_REMOTE = "alluxio.underfs.hdfs.remote";
+    public static final String UNDERFS_HDFS_TRASH_ENABLE = "alluxio.underfs.hdfs.trash.enable";
     public static final String UNDERFS_IO_THREADS = "alluxio.underfs.io.threads";
     public static final String UNDERFS_LOCAL_SKIP_BROKEN_SYMLINKS =
         "alluxio.underfs.local.skip.broken.symlinks";
@@ -9032,6 +9067,10 @@ public final class PropertyKey implements Comparable<PropertyKey> {
         "alluxio.fuse.auth.policy.custom.user";
     public static final String FUSE_AUTH_POLICY_CUSTOM_GROUP =
         "alluxio.fuse.auth.policy.custom.group";
+    public static final String FUSE_AUTH_POLICY_SYSTEM_CACHE_USER_GROUP_SIZE =
+        "alluxio.fuse.auth.policy.system.cache.user.group.size";
+    public static final String FUSE_AUTH_POLICY_SYSTEM_CACHE_USER_GROUP_EXPIRE_TIME =
+        "alluxio.fuse.auth.policy.system.cache.user.group.expire.time";
     public static final String FUSE_CACHED_PATHS_MAX = "alluxio.fuse.cached.paths.max";
     public static final String FUSE_DEBUG_ENABLED = "alluxio.fuse.debug.enabled";
     public static final String FUSE_FS_NAME = "alluxio.fuse.fs.name";
@@ -9063,6 +9102,7 @@ public final class PropertyKey implements Comparable<PropertyKey> {
     public static final String FUSE_JNIFUSE_LIBFUSE_VERSION =
         "alluxio.fuse.jnifuse.libfuse.version";
     public static final String FUSE_AUTO_LOAD_ENABLE = "alluxio.fuse.auto.load.enable";
+    public static final String FUSE_AUTO_LOAD_MIN_FILE_SIZE = "alluxio.fuse.auto.load.min.file.size";
     public static final String FUSE_BLOCK_LOADER_DEDUPLICATE_MS =
         "alluxio.fuse.block.loader.deduplicate.ms";
     public static final String FUSE_MEMORY_CACHE_ENABLE = "alluxio.fuse.memory.cache.enable";
@@ -9076,6 +9116,8 @@ public final class PropertyKey implements Comparable<PropertyKey> {
         "alluxio.fuse.memory.cache.aware.block";
     public static final String FUSE_MEMORY_CACHE_AWARE_BLOCK_PERIOD_MS =
         "alluxio.fuse.memory.cache.aware.block.period.ms";
+    public static final String FUSE_MEMORY_CACHE_AWARE_BLOCK_MIN_FILE_SIZE =
+        "alluxio.fuse.memory.cache.aware.block.min.file.size";
 
     //
     // Security related properties

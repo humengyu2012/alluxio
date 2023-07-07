@@ -44,11 +44,13 @@ public class FuseBlockLoader {
 
   private static final Logger LOG = LoggerFactory.getLogger(FuseBlockLoader.class);
 
+  private static final FuseBlockLoader INSTANCE = new FuseBlockLoader(FileSystemContext.create());
+
   private final FileSystemContext fsContext;
   // 去重集合
   private final Cache<Long, Boolean> clusterCache;
   private final Cache<Long, Boolean> localCache;
-  private final boolean autoLoadEnable;
+  private final long autoLoadMinFileSize;
 
   private FuseBlockLoader(FileSystemContext fsContext) {
     this.fsContext = fsContext;
@@ -64,22 +66,23 @@ public class FuseBlockLoader {
         .maximumSize(128 * 1024)
         .initialCapacity(8 * 1024)
         .build();
-    this.autoLoadEnable = Configuration.getBoolean(PropertyKey.FUSE_AUTO_LOAD_ENABLE);
-    LOG.info("{} is set to {}", PropertyKey.FUSE_AUTO_LOAD_ENABLE.getName(), autoLoadEnable);
-  }
-
-  public boolean isAutoLoadEnable() {
-    return autoLoadEnable;
+    this.autoLoadMinFileSize = Configuration.getBytes(PropertyKey.FUSE_AUTO_LOAD_MIN_FILE_SIZE);
+    LOG.info("Auto load min file size is set to: {} bytes", autoLoadMinFileSize);
   }
 
   public void load(URIStatus status, boolean local, boolean async, long startOffset,
       int cacheBlockCount) {
-    if (!autoLoadEnable) {
+    if (status.getInAlluxioPercentage() == 100) {
+      LOG.info("Skip load {} to cluster, since all blocks are already in alluxio cluster",
+          status.getPath());
       return;
     }
-    if (!local && status.getInAlluxioPercentage() == 100) {
+    if (status.getLength() < autoLoadMinFileSize) {
+      LOG.info("Skip load {} to cluster, since file size {} < {}", status.getPath(),
+          status.getLength(), autoLoadMinFileSize);
       return;
     }
+    LOG.info("Load {} to cluster", status.getPath());
     try {
       AlluxioURI filePath = new AlluxioURI(status.getPath());
       List<Runnable> loadBlockTasks = getLoadBlockTasks(filePath, status, local, async, startOffset,
@@ -234,19 +237,22 @@ public class FuseBlockLoader {
     return fileBlockInfos.stream().allMatch(FuseBlockLoader::blockInLocal);
   }
 
+  private static final boolean MEMORY_CACHE_ENABLE = Configuration.getBoolean(
+      PropertyKey.FUSE_MEMORY_CACHE_ENABLE);
+  private static final boolean AUTO_LOAD_ENABLE = Configuration.getBoolean(
+      PropertyKey.FUSE_AUTO_LOAD_ENABLE);
+
   public static FileInStream create(FileSystem fileSystem, AlluxioURI uri)
       throws IOException, AlluxioException {
-    if (INSTANCE.isAutoLoadEnable()) {
-      LOG.info("Load {} to cluster", uri);
-      INSTANCE.load(fileSystem.getStatus(uri), false, true, 0, Integer.MAX_VALUE);
+    URIStatus status = fileSystem.getStatus(uri);
+    if (AUTO_LOAD_ENABLE) {
+      INSTANCE.load(status, false, true, 0, Integer.MAX_VALUE);
     }
-    if (Configuration.getBoolean(PropertyKey.FUSE_MEMORY_CACHE_ENABLE)) {
-      return new MemoryCacheFileInStream(fileSystem, uri);
+    if (MEMORY_CACHE_ENABLE) {
+      return new MemoryCacheFileInStream(fileSystem, status);
     }
     return fileSystem.openFile(uri);
   }
-
-  private static final FuseBlockLoader INSTANCE = new FuseBlockLoader(FileSystemContext.create());
 
   public static FuseBlockLoader getInstance() {
     return INSTANCE;

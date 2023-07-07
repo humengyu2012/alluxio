@@ -46,10 +46,12 @@ import com.google.common.cache.LoadingCache;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
+import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.Trash;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.security.SecurityUtil;
@@ -108,6 +110,11 @@ public class HdfsUnderFileSystem extends ConsistentUnderFileSystem
 
   private static final String KRB_KEYTAB_LOGIN_AUTO_RENEW =
           "hadoop.kerberos.keytab.login.autorenewal.enabled";
+
+  private static final long HDFS_TRASH_INTERVAL_DEFAULT = 1440L;
+
+  private final LoadingCache<FileSystem, Trash> mFsTrash;
+  private final boolean mTrashEnable;
 
   private final LoadingCache<String, FileSystem> mUserFs;
   private final HdfsAclProvider mHdfsAclProvider;
@@ -206,6 +213,23 @@ public class HdfsUnderFileSystem extends ConsistentUnderFileSystem
       Thread.currentThread().setContextClassLoader(currentClassLoader);
     }
 
+    mTrashEnable = alluxio.conf.Configuration.getBoolean(
+        PropertyKey.UNDERFS_HDFS_TRASH_ENABLE);
+    LOG.info(PropertyKey.UNDERFS_HDFS_TRASH_ENABLE.getName() + " is set to {}", mTrashEnable);
+    mFsTrash = CacheBuilder.newBuilder().build(new CacheLoader<FileSystem, Trash>() {
+      @Override
+      public Trash load(FileSystem fs) throws Exception {
+        Configuration configuration = new Configuration(fs.getConf());
+        long interval = configuration.getLong(CommonConfigurationKeys.FS_TRASH_INTERVAL_KEY,
+            HDFS_TRASH_INTERVAL_DEFAULT);
+        if (interval == 0){
+          interval = HDFS_TRASH_INTERVAL_DEFAULT;
+        }
+        LOG.info("{} is set to {}", CommonConfigurationKeys.FS_TRASH_INTERVAL_KEY, interval);
+        configuration.setLong(CommonConfigurationKeys.FS_TRASH_INTERVAL_KEY, interval);
+        return new Trash(fs, configuration);
+      }
+    });
     mUserFs = CacheBuilder.newBuilder().build(new CacheLoader<String, FileSystem>() {
       @Override
       public FileSystem load(String userKey) throws Exception {
@@ -346,12 +370,12 @@ public class HdfsUnderFileSystem extends ConsistentUnderFileSystem
 
   @Override
   public boolean deleteDirectory(String path, DeleteOptions options) throws IOException {
-    return isDirectory(path) && delete(path, options.isRecursive());
+    return isDirectory(path) && delete(path, options.isRecursive(), false);
   }
 
   @Override
   public boolean deleteFile(String path) throws IOException {
-    return isFile(path) && delete(path, false);
+    return isFile(path) && delete(path, false, true);
   }
 
   @Override
@@ -794,13 +818,26 @@ public class HdfsUnderFileSystem extends ConsistentUnderFileSystem
    * @param recursive whether to delete path recursively
    * @return true, if succeed
    */
-  private boolean delete(String path, boolean recursive) throws IOException {
+  private boolean delete(String path, boolean recursive, boolean isFile) throws IOException {
     IOException te = null;
     FileSystem hdfs = getFs();
     RetryPolicy retryPolicy = new CountingRetry(MAX_TRY);
+    Path hdfsPath = new Path(path);
     while (retryPolicy.attempt()) {
       try {
-        return hdfs.delete(new Path(path), recursive);
+        if (!mTrashEnable) {
+          return hdfs.delete(hdfsPath, recursive);
+        } else {
+          Trash trash = getTrash(hdfs);
+          if (isFile) {
+            return trash.moveToTrash(hdfsPath);
+          }
+          if (!recursive) {
+            // 删目录时，如果不加递归参数，不允许删除
+            return false;
+          }
+          return trash.moveToTrash(hdfsPath);
+        }
       } catch (IOException e) {
         LOG.warn("Attempt count {} : {}", retryPolicy.getAttemptCount(), e.toString());
         te = e;
@@ -871,6 +908,14 @@ public class HdfsUnderFileSystem extends ConsistentUnderFileSystem
       return mUserFs.get(HDFS_USER);
     } catch (ExecutionException e) {
       throw new IOException("Failed get FileSystem for " + mUri, e.getCause());
+    }
+  }
+
+  private Trash getTrash(FileSystem fs) throws IOException {
+    try {
+      return mFsTrash.get(fs);
+    } catch (ExecutionException e) {
+      throw new IOException("Failed get Trash", e);
     }
   }
 }

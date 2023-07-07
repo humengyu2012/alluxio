@@ -37,6 +37,7 @@ import alluxio.exception.runtime.NotFoundRuntimeException;
 import alluxio.exception.runtime.PermissionDeniedRuntimeException;
 import alluxio.exception.runtime.UnavailableRuntimeException;
 import alluxio.fuse.auth.AuthPolicy;
+import alluxio.fuse.file.CloseWithActionsFileOutStream;
 import alluxio.fuse.file.CreateFileStatus;
 import alluxio.fuse.options.FuseOptions;
 import alluxio.grpc.CreateFilePOptions;
@@ -131,8 +132,9 @@ public final class AlluxioFuseUtils {
     try {
       FileOutStream out = fileSystem.createFile(uri,
           optionsBuilder.build());
-      authPolicy.setUserGroup(uri, fileStatus.getUid(), fileStatus.getGid());
-      return out;
+      long uid = fileStatus.getUid();
+      long gid = fileStatus.getGid();
+      return new CloseWithActionsFileOutStream(out, () -> authPolicy.setUserGroup(uri, uid, gid));
     } catch (FileAlreadyExistsException e) {
       throw new AlreadyExistsRuntimeException(e);
     } catch (InvalidPathException e) {
