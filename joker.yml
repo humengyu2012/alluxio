@@ -1,0 +1,13 @@
+version: 2.0
+base_image: bionic
+components:
+  java: 1.8
+
+build:
+  - echo 0
+
+test:
+  unittest:
+    - echo 0
+
+
