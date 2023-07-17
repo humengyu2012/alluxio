@@ -269,9 +269,14 @@ public class MemoryBufferFileOutResource implements Closeable {
       return size;
     }
 
+    public synchronized boolean isFull() {
+      checkClosed();
+      return size == bytes.length;
+    }
+
     public synchronized int put(byte[] data, int offset, int length) {
       checkClosed();
-      if (size == bytes.length) {
+      if (isFull()) {
         return 0;
       }
       int copy = Math.min(length, data.length - offset);

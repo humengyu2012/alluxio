@@ -4,6 +4,7 @@ import alluxio.client.file.FileOutStream;
 import alluxio.fuse.file.MemoryBufferFileOutResource.BytesWrap;
 import alluxio.metrics.MetricsSystem;
 import com.codahale.metrics.Counter;
+import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import java.io.ByteArrayInputStream;
@@ -112,7 +113,7 @@ public class MemoryBufferHdfsFileOutStream extends FileOutStream {
     try (FSDataOutputStream outputStream = fileSystem.create(blockPath);
         ByteArrayInputStream inputStream = bytesWrap.snapshotAsStream()) {
       int available = inputStream.available();
-      IOUtils.copyBytes(inputStream, outputStream, 4096, false);
+      IOUtils.copyBytes(inputStream, outputStream, 8192, false);
       WRITE_HDFS_BYTES.inc(available);
     }
   }
@@ -169,23 +170,27 @@ public class MemoryBufferHdfsFileOutStream extends FileOutStream {
 
   @Override
   public void write(byte[] b, int off, int len) throws IOException {
+    Preconditions.checkArgument(off < b.length,
+        "offset must be less than the length of bytes array");
     if (exception.get() != null) {
       throw MemoryBufferFileOutResource.wrapAsIOException(exception.get());
     }
     if (currentBuffer == null) {
       currentBuffer = takeBuffer();
     }
-    int length = Math.min(b.length - off, len);
+    int offset = off;
+    int length = Math.min(b.length - offset, len);
     while (length > 0) {
-      int copy = currentBuffer.put(b, off, length);
+      int copy = currentBuffer.put(b, offset, length);
       mBytesWritten += copy;
+      offset += copy;
+      length -= copy;
       ACCEPT_BYTES.inc(copy);
-      if (copy == 0) {
+      if (currentBuffer.isFull()) {
         writeCurrentBuffer();
         currentBuffer = takeBuffer();
         continue;
       }
-      length -= copy;
     }
   }
 
