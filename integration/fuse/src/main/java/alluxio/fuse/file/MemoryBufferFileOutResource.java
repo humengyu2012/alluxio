@@ -76,12 +76,8 @@ public class MemoryBufferFileOutResource implements Closeable {
     if (OUTPUT_STREAM_NUMBER > 0) {
       RESOURCES = new ArrayBlockingQueue<>(OUTPUT_STREAM_NUMBER);
       for (int i = 0; i < OUTPUT_STREAM_NUMBER; i++) {
-        try {
-          OUTPUT_STREAM_NUMBER_TOTAL.inc();
-          RESOURCES.put(new MemoryBufferFileOutResource());
-        } catch (InterruptedException e) {
-          throw new RuntimeException(e);
-        }
+        OUTPUT_STREAM_NUMBER_TOTAL.inc();
+        RESOURCES.add(new MemoryBufferFileOutResource());
       }
       POOL = new ThreadPoolExecutor(PARALLELISM, PARALLELISM, 0,
           TimeUnit.MILLISECONDS, new SynchronousQueue<>(),
@@ -272,6 +268,11 @@ public class MemoryBufferFileOutResource implements Closeable {
     public synchronized boolean isFull() {
       checkClosed();
       return size == bytes.length;
+    }
+
+    public synchronized boolean isEmpty() {
+      checkClosed();
+      return size == 0;
     }
 
     public synchronized int put(byte[] data, int offset, int length) {

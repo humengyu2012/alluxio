@@ -57,6 +57,7 @@ public class MemoryBufferHdfsFileOutStream extends FileOutStream {
   private final List<FutureTask<Path>> tasks = new ArrayList<>();
   private final List<Path> tmpPaths = new ArrayList<>();
 
+  private boolean closed;
   private BytesWrap currentBuffer;
 
   public MemoryBufferHdfsFileOutStream(DistributedFileSystem fileSystem, Path path, Path stagingDir,
@@ -67,6 +68,12 @@ public class MemoryBufferHdfsFileOutStream extends FileOutStream {
     this.stagingDir = stagingDir;
     this.resource = resource;
     this.pool = resource.getPool();
+  }
+
+  private void checkClosed() {
+    if (closed) {
+      throw new IllegalStateException("MemoryBufferHdfsFileOutStream is closed");
+    }
   }
 
   @Override
@@ -132,9 +139,13 @@ public class MemoryBufferHdfsFileOutStream extends FileOutStream {
     }
   }
 
-  private void writeCurrentBuffer() {
+  private void writeCurrentBuffer() throws IOException {
     final BytesWrap bytesWrap = currentBuffer;
     currentBuffer = null;
+    if (bytesWrap.isEmpty()) {
+      bytesWrap.close();
+      return;
+    }
     Path tmpPath = getRandomTmpPath();
     tmpPaths.add(tmpPath);
     FutureTask<Path> task = new FutureTask<>(() -> {
@@ -143,9 +154,7 @@ public class MemoryBufferHdfsFileOutStream extends FileOutStream {
         if (exception.get() != null) {
           throw exception.get();
         }
-        if (bytesWrap.getSize() != 0) {
-          retry(() -> writeBlock(tmpPath, bytesWrap), 0, 3);
-        }
+        retry(() -> writeBlock(tmpPath, bytesWrap), 0, 3);
       } catch (Exception e) {
         exception.compareAndSet(null, e);
         throw e;
@@ -170,6 +179,7 @@ public class MemoryBufferHdfsFileOutStream extends FileOutStream {
 
   @Override
   public void write(byte[] b, int off, int len) throws IOException {
+    checkClosed();
     Preconditions.checkArgument(off < b.length,
         "offset must be less than the length of bytes array");
     if (exception.get() != null) {
@@ -189,7 +199,6 @@ public class MemoryBufferHdfsFileOutStream extends FileOutStream {
       if (currentBuffer.isFull()) {
         writeCurrentBuffer();
         currentBuffer = takeBuffer();
-        continue;
       }
     }
   }
@@ -224,6 +233,9 @@ public class MemoryBufferHdfsFileOutStream extends FileOutStream {
 
   @Override
   public void close() throws IOException {
+    if (closed) {
+      return;
+    }
     try {
       doClose();
     } catch (Exception e) {
@@ -231,6 +243,7 @@ public class MemoryBufferHdfsFileOutStream extends FileOutStream {
       throw MemoryBufferFileOutResource.wrapAsIOException(e);
     } finally {
       resource.close();
+      closed = true;
     }
   }
 
@@ -240,9 +253,7 @@ public class MemoryBufferHdfsFileOutStream extends FileOutStream {
       fileSystem.create(path).close();
       return;
     }
-    if (currentBuffer.getSize() > 0) {
-      writeCurrentBuffer();
-    }
+    writeCurrentBuffer();
     // wait for all task finished
     List<Path> blocks = new ArrayList<>();
     for (FutureTask<Path> task : tasks) {
