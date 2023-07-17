@@ -7127,6 +7127,36 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setDefaultValue("16MB")
           .setScope(Scope.CLIENT)
           .build();
+  public static final PropertyKey FUSE_MEMORY_BUFFER_OUTPUT_STREAM_NUMBER =
+      intBuilder(Name.FUSE_MEMORY_BUFFER_OUTPUT_STREAM_NUMBER)
+          .setDefaultValue(0)
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.IGNORE)
+          .setScope(Scope.CLIENT)
+          .build();
+  public static final PropertyKey FUSE_MEMORY_BUFFER_PARALLELISM =
+      intBuilder(Name.FUSE_MEMORY_BUFFER_PARALLELISM)
+          .setDefaultValue(32)
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.IGNORE)
+          .setScope(Scope.CLIENT)
+          .build();
+  public static final PropertyKey FUSE_MEMORY_BUFFER_BLOCK_SIZE =
+      dataSizeBuilder(Name.FUSE_MEMORY_BUFFER_BLOCK_SIZE)
+          .setDefaultValue("128MB")
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.IGNORE)
+          .setScope(Scope.CLIENT)
+          .build();
+  public static final PropertyKey FUSE_MEMORY_BUFFER_CLEAN_BLOCK_FILE_PERIOD =
+      durationBuilder(Name.FUSE_MEMORY_BUFFER_CLEAN_BLOCK_FILE_PERIOD)
+          .setDefaultValue("1h")
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.IGNORE)
+          .setScope(Scope.CLIENT)
+          .build();
+  public static final PropertyKey FUSE_MEMORY_BUFFER_TMP_BLOCK_EXPIRED_TIME =
+      durationBuilder(Name.FUSE_MEMORY_BUFFER_TMP_BLOCK_EXPIRED_TIME)
+          .setDefaultValue("1d")
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.IGNORE)
+          .setScope(Scope.CLIENT)
+          .build();
 
   //
   // Security related properties
@@ -9118,6 +9148,16 @@ public final class PropertyKey implements Comparable<PropertyKey> {
         "alluxio.fuse.memory.cache.aware.block.period.ms";
     public static final String FUSE_MEMORY_CACHE_AWARE_BLOCK_MIN_FILE_SIZE =
         "alluxio.fuse.memory.cache.aware.block.min.file.size";
+    public static final String FUSE_MEMORY_BUFFER_OUTPUT_STREAM_NUMBER =
+        "alluxio.fuse.memory.buffer.output.stream.number";
+    public static final String FUSE_MEMORY_BUFFER_PARALLELISM =
+        "alluxio.fuse.memory.buffer.parallelism";
+    public static final String FUSE_MEMORY_BUFFER_BLOCK_SIZE =
+        "alluxio.fuse.memory.buffer.block.size";
+    public static final String FUSE_MEMORY_BUFFER_CLEAN_BLOCK_FILE_PERIOD =
+        "alluxio.fuse.memory.buffer.clean.block.file.period";
+    public static final String FUSE_MEMORY_BUFFER_TMP_BLOCK_EXPIRED_TIME =
+        "alluxio.fuse.memory.buffer.tmp.block.expired.time";
 
     //
     // Security related properties

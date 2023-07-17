@@ -39,6 +39,7 @@ import alluxio.exception.runtime.UnavailableRuntimeException;
 import alluxio.fuse.auth.AuthPolicy;
 import alluxio.fuse.file.CloseWithActionsFileOutStream;
 import alluxio.fuse.file.CreateFileStatus;
+import alluxio.fuse.file.MemoryBufferFileOutResource;
 import alluxio.fuse.options.FuseOptions;
 import alluxio.grpc.CreateFilePOptions;
 import alluxio.grpc.SetAttributePOptions;
@@ -130,11 +131,12 @@ public final class AlluxioFuseUtils {
       optionsBuilder.setMode(new Mode((short) fileStatus.getMode()).toProto());
     }
     try {
-      FileOutStream out = fileSystem.createFile(uri,
-          optionsBuilder.build());
+      CloseWithActionsFileOutStream out = MemoryBufferFileOutResource.createFileOutStream(
+          fileSystem, uri, optionsBuilder.build());
       long uid = fileStatus.getUid();
       long gid = fileStatus.getGid();
-      return new CloseWithActionsFileOutStream(out, () -> authPolicy.setUserGroup(uri, uid, gid));
+      out.addAction(() -> authPolicy.setUserGroup(uri, uid, gid));
+      return out;
     } catch (FileAlreadyExistsException e) {
       throw new AlreadyExistsRuntimeException(e);
     } catch (InvalidPathException e) {
