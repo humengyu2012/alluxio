@@ -2,6 +2,8 @@ package alluxio.fuse.file;
 
 import alluxio.client.file.FileOutStream;
 import alluxio.fuse.file.MemoryBufferFileOutResource.BytesWrap;
+import alluxio.metrics.MetricsSystem;
+import com.codahale.metrics.Counter;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import java.io.ByteArrayInputStream;
@@ -29,6 +31,11 @@ import org.slf4j.LoggerFactory;
 public class MemoryBufferHdfsFileOutStream extends FileOutStream {
 
   private static final Logger LOG = LoggerFactory.getLogger(MemoryBufferHdfsFileOutStream.class);
+
+  private static final Counter ACCEPT_BYTES = MetricsSystem.counter(
+      "Fuse_memory_buffer_accept_bytes");
+  private static final Counter WRITE_HDFS_BYTES = MetricsSystem.counter(
+      "Fuse_memory_buffer_write_hdfs_bytes");
 
   private static final Cache<Path, Boolean> DIR_CACHE = CacheBuilder.newBuilder()
       .expireAfterWrite(1, TimeUnit.HOURS)
@@ -104,7 +111,9 @@ public class MemoryBufferHdfsFileOutStream extends FileOutStream {
     createDirIfNotExist(blockPath.getParent());
     try (FSDataOutputStream outputStream = fileSystem.create(blockPath);
         ByteArrayInputStream inputStream = bytesWrap.snapshotAsStream()) {
+      int available = inputStream.available();
       IOUtils.copyBytes(inputStream, outputStream, 4096, false);
+      WRITE_HDFS_BYTES.inc(available);
     }
   }
 
@@ -170,6 +179,7 @@ public class MemoryBufferHdfsFileOutStream extends FileOutStream {
     while (length > 0) {
       int copy = currentBuffer.put(b, off, length);
       mBytesWritten += copy;
+      ACCEPT_BYTES.inc(copy);
       if (copy == 0) {
         writeCurrentBuffer();
         currentBuffer = takeBuffer();
